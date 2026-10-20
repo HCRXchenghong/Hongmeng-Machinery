@@ -1,0 +1,30 @@
+node_modules/
+.DS_Store
+.local-logs/
+.env
+.env.*
+!.env.example
+!.env.*.example
+data/admin-users.json
+data/leads.json
+dist/
+.astro/
+.tmp/
+build/
+coverage/
+cms/.cache/
+cms/build/
+cms/dist/
+cms/public/uploads/
+servicebridge/backend/customer-service
+servicebridge/backend/coverage.out
+servicebridge/backend/uploads/
+
+# 生产数据库备份
+backups/
+
+# 本地 npm 缓存（避免使用系统 ~/.npm）
+.npm-cache/
+
+# 本地 pub 缓存（避免使用系统 ~/.pub-cache）
+.pub-cache/

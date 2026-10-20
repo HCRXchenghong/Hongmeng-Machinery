@@ -1,0 +1,97 @@
+# ASTREVA edge: Caddy 直接监听 80/443，自动申请并续期证书。
+# 域名与证书邮箱全部来自容器环境变量（SITE_DOMAIN / ADMIN_DOMAIN / SERVICE_DOMAIN / ACME_EMAIL），
+# 由 deployments/ubuntu/.env.ubuntu 提供，避免仓库里写死域名或重复生成配置导致漂移。
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+# 官网
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	# 咨询单由官网域名直连后台，避免跨域与预检。
+	handle /site-admin-api/leads {
+		reverse_proxy admin-server:1337
+	}
+
+	# 草稿预览：构建服务写入发布卷的 preview/ 目录，由官网容器暴露。
+	handle /__preview/* {
+		reverse_proxy frontend:80
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+# 统一后台
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	reverse_proxy admin-server:1337
+}
+
+# 客服引擎 + 访客端 + 开放接口
+{$SERVICE_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	handle /api/* {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /api {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /ws* {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	# 第三方平台开放接口（API Key 鉴权），必须与访客端页面区分开。
+	handle /open/* {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /open {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /uploads/* {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /readyz {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /healthz {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle /metrics {
+		reverse_proxy servicebridge-backend-1:8080 servicebridge-backend-2:8080
+	}
+
+	handle {
+		reverse_proxy servicebridge-user-web:80
+	}
+}
