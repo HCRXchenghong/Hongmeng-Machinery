@@ -93,6 +93,9 @@
           <a-descriptions-item label="最近路径" :span="2">
             {{ textOr(profile.last_path) }}
           </a-descriptions-item>
+          <a-descriptions-item label="访问记录" :span="2">
+            {{ visitData ? `已关联最近一次访问 · ${localTime(visitData.occurred_at || visitData.occurredAt)}` : '未关联到官网访问记录' }}
+          </a-descriptions-item>
           <a-descriptions-item label="来源" :span="2">
             {{ sourceText }}
           </a-descriptions-item>
@@ -128,7 +131,10 @@
         </div>
 
         <a-typography-text v-if="deviceFallback" type="secondary" class="popup-footnote">
-          说明：当前画像接口未返回浏览器 / OS / 设备字段，因此这三项显示「暂无数据」。
+          未关联到最近一次官网访问，因此浏览器、操作系统、设备和最近路径暂无数据。请确认访客已同意分析 Cookie，并且访问的是新官网；本地 127.0.0.1 也无法解析国家/时区。
+        </a-typography-text>
+        <a-typography-text v-else type="secondary" class="popup-footnote">
+          浏览器、操作系统、设备与最近路径来自最近一次官网访问；国家/时区来自 IP 地理库，本地或内网 IP 无法解析。
         </a-typography-text>
       </template>
 
@@ -139,7 +145,7 @@
 
 <script lang="ts" setup>
   import { computed, ref, watch } from 'vue';
-  import { fetchVisitorProfile } from '@/api/admin';
+  import { fetchVisitorProfile, fetchVisitorVisits } from '@/api/admin';
 
   const props = defineProps<{
     visible: boolean;
@@ -149,6 +155,7 @@
 
   const loading = ref(false);
   const profile = ref<any>(null);
+  const visitData = ref<any>(null);
   const state = ref<'idle' | 'missing' | 'ok' | 'empty' | 'error'>('idle');
   const errorText = ref('');
 
@@ -315,6 +322,7 @@
   async function load() {
     const id = visitorId.value;
     profile.value = null;
+    visitData.value = null;
     errorText.value = '';
     if (!id) {
       state.value = 'missing';
@@ -323,13 +331,29 @@
     loading.value = true;
     state.value = 'idle';
     try {
-      const payload = await fetchVisitorProfile(id);
+      const [payload, visits] = await Promise.all([
+        fetchVisitorProfile(id),
+        fetchVisitorVisits(id).catch(() => []),
+      ]);
       const detail = payload?.profile ?? payload ?? null;
       if (!detail || typeof detail !== 'object' || !Object.keys(detail).length) {
         state.value = 'empty';
         return;
       }
-      profile.value = detail;
+      const latest = Array.isArray(visits) ? (visits.find((item: any) => item?.isBot !== true) || visits[0] || null) : null;
+      visitData.value = latest;
+      profile.value = latest
+        ? {
+            ...detail,
+            country: detail.country || latest.country || '',
+            browser: detail.browser || latest.browser || '',
+            os: detail.os || latest.os || '',
+            device: detail.device || latest.device || '',
+            last_path: detail.last_path || latest.path || '',
+            referrer: detail.referrer || latest.referrer || '',
+            last_seen_at: detail.last_seen_at || latest.occurred_at || latest.occurredAt || null,
+          }
+        : detail;
       state.value = 'ok';
     } catch (reason: any) {
       // 404 = 引擎里没有这条画像，属于正常空态，不算错误。

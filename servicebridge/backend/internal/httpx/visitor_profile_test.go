@@ -1,10 +1,12 @@
 package httpx
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -25,7 +27,7 @@ func newVisitorProfileRouter(t *testing.T) (http.Handler, store.Store) {
 	st := store.NewMemoryStore(store.Options{})
 	_, _ = st.UpdateBusinessHours(domain.BusinessHours{Timezone: "Asia/Shanghai", Enabled: false})
 	service := app.NewService(st, realtime.NewHub(), slog.Default())
-	return NewRouter(config.Config{Env: "test"}, slog.Default(), service), st
+	return NewRouter(config.Config{Env: "test", GeoIPUploadDir: t.TempDir()}, slog.Default(), service), st
 }
 
 // seedVisitorProfile 写入一条画像（绕过采集链路，直接构造列表/详情数据）。
@@ -411,4 +413,38 @@ func TestVisitorProfileConversationCreationFeedsProfile(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("等待画像采集超时")
+}
+
+func TestUploadGeoIPDatabase(t *testing.T) {
+	router, _ := newVisitorProfileRouter(t)
+	adminToken := loginForToken(t, router, "/api/admin/login", "superadmin", "123456")
+
+	payload := bytes.Repeat([]byte{0}, 900*1024)
+	payload = append(payload, []byte("MaxMind.com")...)
+	body, contentType := multipartBody(t, nil, "file", "GeoLite2-City.mmdb", payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/visitor-profile/geoip-upload", body)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("上传 GeoLite2 返回 %d：%s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		Settings map[string]any `json:"settings"`
+		Path     string         `json:"path"`
+		Bytes    int64          `json:"bytes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("解析上传响应失败：%v", err)
+	}
+	if response.Bytes != int64(len(payload)) || response.Path == "" {
+		t.Fatalf("上传响应异常：%+v", response)
+	}
+	if response.Settings["geoip_db_path"] != response.Path {
+		t.Fatalf("上传后未回填 geoip_db_path：%+v", response.Settings)
+	}
+	if _, err := os.Stat(response.Path); err != nil {
+		t.Fatalf("上传后的 mmdb 不存在：%v", err)
+	}
 }

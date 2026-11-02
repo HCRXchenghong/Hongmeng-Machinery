@@ -30,7 +30,7 @@
  *     node scripts/verify-ai-failover.mjs
  *
  * Optional environment / .env overrides (read from the repo .env when present):
- *     ASTREVA_E2E_ENGINE_URL        Go engine base URL      (default http://127.0.0.1:8080)
+ *     ASTREVA_E2E_ENGINE_URL        Go engine base URL      (default http://127.0.0.1:8081)
  *     ASTREVA_E2E_ADMIN_ACCOUNT     admin account           (default superadmin)
  *     ASTREVA_E2E_ADMIN_PASSWORD    admin password          (default 123456)
  *     ASTREVA_E2E_MIMO_API_KEY      real MiMo API key       (only needed when the provider is missing)
@@ -176,7 +176,7 @@ function snippet(value, max = 600) {
 // ---------------------------------------------------------------------------
 
 const cfg = {
-  engineUrl: (envValue('ASTREVA_E2E_ENGINE_URL', 'SERVICEBRIDGE_ENGINE_URL') || 'http://127.0.0.1:8080').replace(/\/+$/, ''),
+  engineUrl: (envValue('ASTREVA_E2E_ENGINE_URL', 'SERVICEBRIDGE_ENGINE_URL') || 'http://127.0.0.1:8081').replace(/\/+$/, ''),
   adminAccount: envValue('ASTREVA_E2E_ADMIN_ACCOUNT', 'SERVICEBRIDGE_ADMIN_ACCOUNT') || 'superadmin',
   adminPassword: envValue('ASTREVA_E2E_ADMIN_PASSWORD', 'SERVICEBRIDGE_ADMIN_PASSWORD') || '123456',
   mimoBaseUrl: (envValue('ASTREVA_E2E_MIMO_BASE_URL', 'MIMO_BASE_URL') || 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),

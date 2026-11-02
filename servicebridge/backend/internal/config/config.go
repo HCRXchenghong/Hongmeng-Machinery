@@ -45,6 +45,7 @@ type Config struct {
 	UploadDriver        string
 	AppReleaseMaxBytes  int64
 	UploadDir           string
+	GeoIPUploadDir      string
 	UploadPublicBaseURL string
 	UploadMaxBytes      int64
 	S3Endpoint          string
@@ -94,6 +95,7 @@ func Load() Config {
 		UploadDriver:            env("UPLOAD_DRIVER", "local"),
 		AppReleaseMaxBytes:      envInt64("APP_RELEASE_MAX_BYTES", 200*1024*1024),
 		UploadDir:               env("UPLOAD_DIR", "uploads"),
+		GeoIPUploadDir:          env("GEOIP_UPLOAD_DIR", "geoip"),
 		UploadPublicBaseURL:     env("UPLOAD_PUBLIC_BASE_URL", ""),
 		UploadMaxBytes:          envInt64("UPLOAD_MAX_BYTES", 10*1024*1024),
 		S3Endpoint:              env("S3_ENDPOINT", ""),

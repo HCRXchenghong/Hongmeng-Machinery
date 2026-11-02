@@ -6,27 +6,25 @@ export default {
   component: DEFAULT_LAYOUT,
   redirect: '/apps/releases',
   meta: {
-    title: '应用管理',
-        locale: '应用管理',
+    title: '应用',
+    locale: '应用',
     requiresAuth: true,
-    icon: 'IconMobile',
-    order: 5,
-    hideInMenu: false,
+    icon: 'IconApps',
+    order: 60,
+    hideInMenu: false
   },
   children: [
     {
       path: 'releases',
-      name: 'Releases',
+      name: 'AppReleases',
       component: () => import('@/views/apps/releases.vue'),
-      meta: { title: 'App 版本',
-        locale: 'App 版本', requiresAuth: true },
+      meta: { title: '应用版本', locale: '应用版本', requiresAuth: true }
     },
     {
       path: 'api',
-      name: 'ApiApps',
+      name: 'AppApi',
       component: () => import('@/views/apps/api.vue'),
-      meta: { title: 'API 管理',
-        locale: 'API 管理', requiresAuth: true },
-    },
-  ],
+      meta: { title: '接口授权', locale: '接口授权', requiresAuth: true }
+    }
+  ]
 };

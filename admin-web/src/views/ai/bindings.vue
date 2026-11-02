@@ -1,6 +1,6 @@
 <template>
   <div class="ai-bindings">
-    <a-alert class="tips" type="info" title="故障转移链说明">
+    <a-alert class="tips" type="info" title="备用模型说明">
       <ul class="tips-list">
         <li>
           调用时按<strong>优先级从小到大</strong>依次尝试该能力的候选供应商；优先级数字越小越先尝试。
@@ -15,14 +15,14 @@
         </li>
         <li>
           候选保存是<strong>整体替换</strong>：每次提交全部能力的完整候选列表，
-          清空某能力的候选即表示该能力不参与故障转移链（直接走兜底）。
+          清空某能力的候选即表示该能力不参与备用模型（直接走兜底）。
         </li>
       </ul>
     </a-alert>
 
-    <!-- ===== 故障转移链（多供应商 + 优先级）===== -->
+    <!-- ===== 备用模型（多供应商 + 优先级）===== -->
     <a-card :bordered="false" class="chain-card">
-      <template #title>故障转移链</template>
+      <template #title>备用模型</template>
       <template #extra>
         <a-button
           type="primary"
@@ -90,7 +90,7 @@
           </div>
 
           <div v-if="!group.targets.length" class="empty-hint">
-            该能力暂无候选：不参与故障转移链，调用时直接走「默认绑定（兜底）」。
+            该能力暂无候选：不参与备用模型，调用时直接走「默认绑定（兜底）」。
           </div>
           <div v-else class="candidate-list">
             <div
@@ -294,9 +294,9 @@
         </a-button>
       </template>
       <a-alert class="tips" type="info">
-        故障转移链上的候选全部不可用时才使用默认绑定；未绑定默认绑定且无候选时，
+        备用模型上的候选全部不可用时才使用默认绑定；未绑定默认绑定且无候选时，
         回退到「系统设置」里的全局上游。接待 AI 与翻译 / 语言检测由客服引擎使用；
-        AI SEO 与 AI 生图当前仍由官网后台使用独立配置，下一轮接入。
+        AI SEO 现在在「官网 → SEO 设置」里使用 seo 能力；AI 生图使用 image 能力。
       </a-alert>
       <a-table :data="rows" :loading="loading" :pagination="false" row-key="capability">
         <template #columns>
@@ -449,7 +449,7 @@
     return values.map((value) => ({ label: value, value }));
   }
 
-  // ---------- 故障转移链数据 ----------
+  // ---------- 备用模型数据 ----------
   function normalizeTargets(value: any, capability: string) {
     return (Array.isArray(value) ? value : [])
       .filter((item) => item && item.capability === capability)

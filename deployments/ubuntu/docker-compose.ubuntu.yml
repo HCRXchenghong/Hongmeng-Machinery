@@ -1,3 +1,4 @@
+name: hongmeng-machinery
 services:
   caddy:
     image: caddy:2.8-alpine
@@ -27,7 +28,7 @@ services:
       servicebridge-backend-2:
         condition: service_started
     networks:
-      - astreva
+      - hongmeng
 
   postgres:
     image: postgres:16-alpine
@@ -45,7 +46,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - astreva
+      - hongmeng
 
   redis:
     image: redis:7.2-alpine
@@ -59,7 +60,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - astreva
+      - hongmeng
 
   servicebridge-backend-1:
     build:
@@ -88,6 +89,7 @@ services:
       OPENAI_API_TYPE: ${OPENAI_API_TYPE}
       UPLOAD_DRIVER: ${UPLOAD_DRIVER}
       UPLOAD_DIR: "/uploads"
+      GEOIP_UPLOAD_DIR: "/data/geoip"
       UPLOAD_PUBLIC_BASE_URL: ${UPLOAD_PUBLIC_BASE_URL}
       UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES}
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -102,6 +104,7 @@ services:
       NODE_ID: "servicebridge-backend-1"
     volumes:
       - servicebridge-uploads:/uploads
+      - geoip-data:/data/geoip
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +116,7 @@ services:
       timeout: 5s
       retries: 15
     networks:
-      - astreva
+      - hongmeng
 
   servicebridge-backend-2:
     build:
@@ -142,6 +145,7 @@ services:
       OPENAI_API_TYPE: ${OPENAI_API_TYPE}
       UPLOAD_DRIVER: ${UPLOAD_DRIVER}
       UPLOAD_DIR: "/uploads"
+      GEOIP_UPLOAD_DIR: "/data/geoip"
       UPLOAD_PUBLIC_BASE_URL: ${UPLOAD_PUBLIC_BASE_URL}
       UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES}
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -156,6 +160,7 @@ services:
       NODE_ID: "servicebridge-backend-2"
     volumes:
       - servicebridge-uploads:/uploads
+      - geoip-data:/data/geoip
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,7 +172,7 @@ services:
       timeout: 5s
       retries: 15
     networks:
-      - astreva
+      - hongmeng
 
   servicebridge-user-web:
     build:
@@ -180,7 +185,7 @@ services:
       timeout: 5s
       retries: 15
     networks:
-      - astreva
+      - hongmeng
 
   admin-server:
     build:
@@ -249,7 +254,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - astreva
+      - hongmeng
 
   rebuild-webhook:
     build:
@@ -278,7 +283,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - astreva
+      - hongmeng
 
   frontend:
     build:
@@ -291,7 +296,7 @@ services:
     volumes:
       - frontend-published:/usr/share/nginx/site:ro
     networks:
-      - astreva
+      - hongmeng
 
   minio:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
@@ -310,7 +315,7 @@ services:
       timeout: 5s
       retries: 30
     networks:
-      - astreva
+      - hongmeng
 
   minio-init:
     image: minio/mc:RELEASE.2025-08-13T08-35-41Z
@@ -321,7 +326,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        BUCKET="$${S3_BUCKET:-astreva-site-media}"
+        BUCKET="$${S3_BUCKET:-hongmeng-site-media}"
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
         mc mb -p "local/$$BUCKET" || true &&
         mc anonymous set download "local/$$BUCKET" &&
@@ -329,9 +334,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:-astreva-site-media}
+      S3_BUCKET: ${S3_BUCKET:-hongmeng-site-media}
     networks:
-      - astreva
+      - hongmeng
 
   # ---------------------------------------------------------------- 监控（profile: monitoring，默认不启动）
   # 启用：docker compose --env-file deployments/ubuntu/.env.ubuntu --profile monitoring up -d
@@ -364,7 +369,7 @@ services:
     ports:
       - "${PROMETHEUS_HOST_PORT:-127.0.0.1:9090}:9090"
     networks:
-      - astreva
+      - hongmeng
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -387,13 +392,14 @@ services:
     depends_on:
       - prometheus
     networks:
-      - astreva
+      - hongmeng
 
 volumes:
   postgres-data:
   redis-data:
   minio-data:
   servicebridge-uploads:
+  geoip-data:
   admin-data:
   admin-uploads:
   caddy-data:
@@ -404,5 +410,5 @@ volumes:
   grafana-data:
 
 networks:
-  astreva:
-    name: astreva-ubuntu
+  hongmeng:
+    name: hongmeng-ubuntu

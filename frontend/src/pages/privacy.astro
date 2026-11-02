@@ -1,8 +1,4 @@
 ---
-import PrivacyView from '../views/PrivacyView.astro';
-import { getContent } from '../lib/content';
-
-const content = await getContent('zh-CN');
+import StoreLayout from '../layouts/StoreLayout.astro';
 ---
-
-<PrivacyView content={content} locale="zh-CN" />
+<StoreLayout mode="privacy" title="Privacy Policy" description="How Hongmeng Machinery collects, uses, and protects personal information." />

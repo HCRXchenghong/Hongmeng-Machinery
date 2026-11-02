@@ -318,6 +318,16 @@ export const aiCommitPreview = (
     .post<{ data: MediaItem }>(`${BASE}/ai-preview/${encodeURIComponent(id)}/commit`, payload)
     .then((r) => r.data);
 
+/** 预览结果导出地址：format 为 png 或 webp，由后端鉴权后以附件返回。 */
+export const aiPreviewExportUrl = (id: string, format: 'png' | 'webp' = 'png') =>
+  `${BASE}/ai-preview/${encodeURIComponent(id)}/export?format=${format}`;
+
+/** 保存生图安全约束（后台可配置，空字符串表示关闭）。 */
+export const updateAiImageSafetyPrompt = (safetyPrompt: string) =>
+  client
+    .patch('/site-admin-api/system/media-settings/ai-image', { safetyPrompt })
+    .then((r) => r.data);
+
 export const aiDiscardPreview = (id: string) =>
   client
     .delete<{ data: { id: string; discarded: boolean } }>(

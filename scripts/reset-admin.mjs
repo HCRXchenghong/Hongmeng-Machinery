@@ -79,7 +79,7 @@ const res = await client.query(
 if (!res.rows.length) throw new Error('no admin user row found');
 await client.end();
 
-const base = 'http://127.0.0.1:1337';
+const base = 'http://127.0.0.1:1338';
 const start = await (await fetch(base + '/site-admin-auth/login/start', {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ email: NEW_EMAIL, password: NEW_PASSWORD })
@@ -90,7 +90,7 @@ const verify = await (await fetch(base + '/site-admin-auth/login/verify', {
   body: JSON.stringify({ challengeId: start.challengeId, code })
 })).json();
 
-const otpauth = `otpauth://totp/${encodeURIComponent('星渡官网账号:' + NEW_EMAIL)}?secret=${secret}&issuer=${encodeURIComponent('星渡官网账号')}&algorithm=SHA1&digits=6&period=30`;
+const otpauth = `otpauth://totp/${encodeURIComponent('宏盟机械管理台:' + NEW_EMAIL)}?secret=${secret}&issuer=${encodeURIComponent('宏盟机械管理台')}&algorithm=SHA1&digits=6&period=30`;
 const qrPath = path.join(rootDir, '.local-logs', 'admin-2fa-reset.png');
 await QRCode.toFile(qrPath, otpauth, { margin: 1, width: 320 });
 

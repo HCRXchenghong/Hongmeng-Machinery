@@ -67,9 +67,9 @@
   const { logout } = useUser();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
 
-  const brandName = 'ASTREVA';
+  const brandName = '宏盟机械';
   // 品牌资源随控制台一起构建，dev 与生产都走同一个 base 路径。
-  const logoUrl = `${import.meta.env.BASE_URL}assets/astreva-logo-transparent.png`;
+  const logoUrl = `${import.meta.env.BASE_URL}assets/hongmeng-logo.svg`;
   const topMenu = computed(() => appStore.topMenu && appStore.menu);
   const accountName = computed(() => userStore.name || '管理员');
   const accountEmail = computed(() => userStore.email || '');

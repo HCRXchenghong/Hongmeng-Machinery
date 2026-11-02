@@ -61,7 +61,6 @@
   const route = useRoute();
   const permission = usePermission();
   useResponsive(true);
-  const navbarHeight = `60px`;
   const navbar = computed(() => appStore.navbar);
   const renderMenu = computed(() => appStore.menu && !appStore.topMenu);
   const hideMenu = computed(() => appStore.hideMenu);
@@ -73,12 +72,14 @@
     return appStore.menuCollapse;
   });
   const paddingStyle = computed(() => {
-    const paddingLeft =
-      renderMenu.value && !hideMenu.value
-        ? { paddingLeft: `${menuWidth.value}px` }
-        : {};
-    const paddingTop = navbar.value ? { paddingTop: navbarHeight } : {};
-    return { ...paddingLeft, ...paddingTop };
+    // 内容区与固定顶栏、侧边栏之间保留统一间距，避免页面标题/卡片紧贴导航。
+    const side = renderMenu.value && !hideMenu.value ? menuWidth.value + 20 : 20;
+    return {
+      paddingLeft: `${side}px`,
+      paddingRight: '20px',
+      paddingTop: navbar.value ? '76px' : '16px',
+      paddingBottom: '24px'
+    };
   });
   const setCollapsed = (val: boolean) => {
     if (!isInit.value) return; // for page initialization menu state problem

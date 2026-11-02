@@ -1,9 +1,14 @@
 import crypto from 'node:crypto';
 import { parseUserAgent } from './user-agent.mjs';
+import { consentCookieHeader } from './consent-cookie.mjs';
 
 const BEACON_BODY_LIMIT = 8 * 1024;
 const BEACON_RATE_WINDOW_MS = 60 * 1000;
 const BEACON_RATE_MAX = Number(process.env.ADMIN_ANALYTICS_RATE_MAX || 120);
+/** 删除接口单独一档：body 更小、频率更低（同一 IP 10 分钟 12 次足够）。 */
+const FORGET_BODY_LIMIT = 2 * 1024;
+const FORGET_RATE_WINDOW_MS = 10 * 60 * 1000;
+const FORGET_RATE_MAX = Number(process.env.ADMIN_ANALYTICS_FORGET_RATE_MAX || 12);
 const ALLOWED_EVENTS = new Set(['pageview', 'chat_open', 'lead_submit']);
 
 // 官网埋点 → 客服引擎访客画像的服务间通道：只有配置了 INTERNAL_API_TOKEN 才会启用。
@@ -100,6 +105,24 @@ const ANONYMOUS_SALT_SECRET = String(
 const ANONYMOUS_SALT_NAMESPACE = 'astreva-analytics-anonymous-visitor:v1';
 
 /**
+ * 访客删除令牌密钥：/forget 不靠会话，靠「只有真正收到过埋点响应的客户端才拿得到的签名」，
+ * 光知道 visitor_id（后台、客服 visitor_ref 里都能看到）删不掉别人的明细。
+ * 生产可单独配 `ADMIN_ANALYTICS_FORGET_SECRET`，未配置时回退到匿名盐根密钥。
+ */
+const FORGET_SECRET = String(process.env.ADMIN_ANALYTICS_FORGET_SECRET || ANONYMOUS_SALT_SECRET);
+
+/** HMAC(secret, visitor_id) 前 32 hex；恒定时间比较，避免时序侧信道。 */
+export function forgetToken(visitorId, { secret = FORGET_SECRET } = {}) {
+  return crypto.createHmac('sha256', secret).update(`forget:${visitorId}`).digest('hex').slice(0, 32);
+}
+
+function sameToken(left, right) {
+  const a = Buffer.from(String(left || ''));
+  const b = Buffer.from(String(right || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
  * 匿名 UV 的 IP 归并（截断）：
  * - IPv4 只保留 /24（末段置 0）；
  * - IPv6 只保留 /64（前 4 个 hextet）；
@@ -160,6 +183,11 @@ export function anonymousVisitorId(ip, { day = '', secret } = {}) {
 
 function clean(value, maxLength) {
   return String(value || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, maxLength);
+}
+
+/** 客户端标识（visitor_id / session_id）：只留 cookie 安全字符，服务端自己也在 64 长度内。 */
+function safeId(value) {
+  return clean(value, 64).replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64);
 }
 
 function safeReferrer(value) {
@@ -393,9 +421,11 @@ export function createEngineDashboardClient({
  * 官网数据看板与系统日志（访问部分）。
  * - POST /site-admin-api/analytics/visit 公开埋点（管理员登录之外的唯一公开写入口）
  *   - 已同意 analytics：前端带 visitor_id/session_id，按真实标识计数 UV；
- *   - 未同意 analytics：前端只发 `anonymous:true`，服务端用「当日轮换的盐 + 归并 IP」
+ *   - 尚未选择与明确拒绝：前端都只发 `anonymous:true`（选择只影响“记不记得住这个人”），
+ *     服务端用「当日轮换的盐 + 归并 IP」
  *     派生 `anon_<16字节HMAC>` 作为 visitor_id。匿名 UV 只在当天去重、不含跨天识别；
- *     访问明细（IP/UA）依旧入库，供安全审计与危险识别。
+ *     该行的 IP 同样按网段归并后入库（/24、/64），明文 IP 只留在安全日志。
+ *   - 例外：浏览器带 Sec-GPC 且访客没明确同意时，前端连匿名上报也不发。
  * - 其余接口都需要管理员会话
  */
 export function createAnalyticsRouter({
@@ -411,6 +441,8 @@ export function createAnalyticsRouter({
   engineDashboard = null
 }) {
   const rateWindows = new Map();
+  // 删除接口单独限流：批量删除的流量不该把埋点挤掉。
+  const forgetWindows = new Map();
   // 询盘来自客服引擎；注入点便于单测替换，未注入时用默认真实客户端。
   const inquiryReader = engineDashboard || createEngineDashboardClient();
 
@@ -435,6 +467,19 @@ export function createAnalyticsRouter({
       for (const [entryKey, value] of rateWindows) if (value.resetAt <= now) rateWindows.delete(entryKey);
     }
     return bucket.count <= BEACON_RATE_MAX;
+  }
+
+  function allowForget(req) {
+    const key = resolveClient(req)?.ip || 'unknown';
+    const now = Date.now();
+    const current = forgetWindows.get(key);
+    const bucket = !current || current.resetAt <= now ? { count: 0, resetAt: now + FORGET_RATE_WINDOW_MS } : current;
+    bucket.count += 1;
+    forgetWindows.set(key, bucket);
+    if (forgetWindows.size > 5000) {
+      for (const [entryKey, value] of forgetWindows) if (value.resetAt <= now) forgetWindows.delete(entryKey);
+    }
+    return bucket.count <= FORGET_RATE_MAX;
   }
 
   async function handleBeacon(req, res) {
@@ -463,18 +508,19 @@ export function createAnalyticsRouter({
       const ipInfo = resolveClient(req);
       // 未同意 analytics 的访客：前端只发匿名 pageview，不携带任何本地标识。
       // 服务端用「当日盐 + 归并 IP」派生匿名 visitor_key，仅用于当日 UV 去重；
-      // 访问明细（含 IP/UA）仍按原样入库，供安全审计与危险识别使用。
+      // 匿名访问明细入库时 IP 也只留网段（/24、/64），明文 IP 只出现在安全日志里。
       const anonymous = payload.anonymous === true;
       const visitorId = anonymous
         ? anonymousVisitorId(ipInfo.ip, { day: anonymousDayKey() })
-        : clean(payload.visitor_id, 64);
-      const sessionId = anonymous ? '' : clean(payload.session_id, 64);
+        // 只认本站的标识形态：客户端可以传任意字符串，带空格/分号/超长的值会污染 cookie 与删除令牌。
+        : safeId(payload.visitor_id);
+      const sessionId = anonymous ? '' : safeId(payload.session_id);
       const targetPath = safePath(payload.path);
       await platformStore.recordVisit({
         path: targetPath,
         host: clean(payload.host || req.headers.host, 200),
         referrer: safeReferrer(payload.referrer),
-        ip: ipInfo.ip,
+        ip: anonymous ? truncateIpForAnonymization(ipInfo.ip) : ipInfo.ip,
         ipSource: ipInfo.source,
         country: countryFromRequest(req),
         userAgent,
@@ -482,13 +528,19 @@ export function createAnalyticsRouter({
         browserVersion: parsed.browserVersion,
         os: parsed.os,
         device: parsed.device,
-        visitorId,
+        visitorId: visitorId || `vis_${crypto.randomUUID()}`,
         sessionId,
         anonymous,
         eventType: ALLOWED_EVENTS.has(payload.event_type) ? payload.event_type : 'pageview',
         isBot: parsed.isBot
       });
-      json(res, 202, { ok: true });
+      // 带标识的埋点才发删除令牌与同意 Cookie：匿名行前端拿不到 visitor_id，也无从删除。
+      if (visitorId && !anonymous) {
+        res.setHeader('Set-Cookie', consentCookieHeader(visitorId));
+        json(res, 202, { ok: true, forget_token: forgetToken(visitorId) });
+      } else {
+        json(res, 202, { ok: true });
+      }
       // 埋点响应已经发出：转发是 fire-and-forget，超时/失败/未配置都不得影响它。
       // 匿名上报的 visitorId 是服务端派生的 anon_*，与真实 id 一样进入访客画像。
       if (visitorId) {
@@ -498,6 +550,64 @@ export function createAnalyticsRouter({
       }
     } catch (error) {
       json(res, 400, { error: { message: error.message || '上报失败。' } });
+    }
+    return true;
+  }
+
+  /**
+   * POST /site-admin-api/analytics/forget —— 访客自助删除。
+   * 只按 visitor_id 删访问明细；匿名行用的是当日派生键，前端拿不到，次日自然失效。
+   */
+  async function handleForget(req, res) {
+    if (!applyPublicCors(req, res)) {
+      json(res, 403, { error: { message: '该网站来源不允许上报访问数据。' } });
+      return true;
+    }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return true;
+    }
+    if (req.method !== 'POST') {
+      json(res, 405, { error: { message: '该接口仅支持 POST。' } });
+      return true;
+    }
+    if (!allowForget(req)) {
+      json(res, 429, { error: { message: '删除请求过于频繁，请稍后再试。' } });
+      return true;
+    }
+    try {
+      const body = await bodyJson(req, FORGET_BODY_LIMIT);
+      const visitorId = clean(body?.visitor_id || body?.data?.visitor_id, 64);
+      const token = clean(body?.token || body?.data?.token, 64);
+      // 只接受本站签发的标识：anon_* 是当日派生键，前端拿不到，也删不干净。
+      if (!/^vis_[A-Za-z0-9_.-]{1,60}$/.test(visitorId)) {
+        json(res, 400, { error: { message: 'visitor_id 缺失或不是本站签发的标识。' } });
+        return true;
+      }
+      if (!sameToken(token, forgetToken(visitorId))) {
+        json(res, 403, { error: { message: '删除令牌缺失或已失效。' } });
+        return true;
+      }
+      const removed = await platformStore.deleteVisitsByVisitorId?.(visitorId);
+      const client = resolveClient(req);
+      try {
+        await platformStore.recordSystemEvent?.({
+          category: 'analytics',
+          level: 'info',
+          action: 'analytics.visitor_forgotten',
+          message: `访客自助删除访问明细 ${Number(removed) || 0} 条`,
+          ip: client?.ip,
+          ipSource: client?.source,
+          method: 'POST',
+          path: '/site-admin-api/analytics/forget',
+          statusCode: 200,
+          detail: { visitor_id: visitorId, removed: Number(removed) || 0 }
+        });
+      } catch {}
+      json(res, 200, { data: { removed: Number(removed) || 0 } });
+    } catch (error) {
+      json(res, 400, { error: { message: error.message || '删除失败。' } });
     }
     return true;
   }
@@ -558,7 +668,7 @@ export function createAnalyticsRouter({
     return true;
   }
 
-  return { handleBeacon, handleAdmin };
+  return { handleBeacon, handleForget, handleAdmin };
 }
 
 /** 危险请求特征识别：命中即写入系统日志并标红。 */

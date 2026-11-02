@@ -139,13 +139,6 @@ export const deleteFallbackVersion = (id: string) =>
     .delete(`/site-admin-api/fallback-versions/${encodeURIComponent(id)}`)
     .then((r) => r.data.data);
 
-// ---------- AI SEO ----------
-/** POST /site-admin-api/seo/ai-generate */
-export const generateSeo = (revision: number) =>
-  client
-    .post<BootstrapPayload>('/site-admin-api/seo/ai-generate', { revision })
-    .then((r) => r.data);
-
 // ---------- 媒体库 ----------
 /** GET /site-admin-api/media */
 export const fetchMediaList = (params: {

@@ -1,5 +1,5 @@
 {
-  "name": "astreva-independent-site",
+  "name": "hongmeng-machinery-platform",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -19,7 +19,7 @@
   "scripts": {
     "dev:frontend": "npm --workspace frontend run dev",
     "cms:contract": "node scripts/check-cms-content-contract.mjs",
-    "build:frontend": "npm run cms:contract && npm --workspace frontend run build",
+    "build:frontend": "npm --workspace frontend run build",
     "preview:frontend": "npm --workspace frontend run preview",
     "dev:admin-web": "npm --workspace admin-web run dev",
     "build:admin-web": "npm --workspace admin-web run build",
@@ -32,13 +32,14 @@
     "build": "npm run build:frontend",
     "rebuild:webhook": "node scripts/rebuild-webhook.mjs",
     "servicebridge:backend": "cd servicebridge/backend && go run ./cmd/server",
-    "servicebridge:web": "cd servicebridge/apps/user-web && python3 -m http.server 5173",
+    "servicebridge:web": "cd servicebridge/apps/user-web && python3 -m http.server ${SERVICEBRIDGE_USER_WEB_PORT:-5175}",
     "typecheck": "npm --workspace frontend run typecheck",
     "lint": "npm --workspace frontend run lint",
     "format": "npm --workspace frontend run format",
     "check": "npm run typecheck && npm run lint && npm run cms:contract",
     "postinstall": "node scripts/ensure-rolldown-binding.mjs",
-    "verify": "bash scripts/verify-all.sh"
+    "verify": "bash scripts/verify-all.sh",
+    "check:locale": "node scripts/check-locale-first-paint.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.62.1"

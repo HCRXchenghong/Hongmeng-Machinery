@@ -274,6 +274,12 @@
             <a-descriptions-item label="最近访问时间">
               {{ localTime(detail.last_seen_at) }}
             </a-descriptions-item>
+            <a-descriptions-item label="浏览器">{{ detail.browser || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="操作系统">{{ detail.os || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="设备">{{ detail.device || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="访问记录">
+              {{ visitData ? `已关联 ${localTime(visitData.occurredAt || visitData.occurred_at)}` : '未关联' }}
+            </a-descriptions-item>
             <a-descriptions-item label="方言">
               {{ detail.dialect || '-' }}
             </a-descriptions-item>
@@ -387,7 +393,7 @@
                   class="conversation-link"
                   :data-testid="`profile-conversation-${item.conversation_id}`"
                   :to="{
-                    path: '/operations/inquiries',
+                    path: '/service/inquiries',
                     query: { conversation: item.conversation_id },
                   }"
                 >
@@ -431,6 +437,7 @@
   import {
     fetchVisitorProfile,
     fetchVisitorProfileSettings,
+    fetchVisitorVisits,
     fetchVisitorProfiles,
     refreshVisitorProfile,
   } from '@/api/admin';
@@ -494,6 +501,7 @@
 
   const detailVisible = ref(false);
   const detail = ref<any>(null);
+  const visitData = ref<any>(null);
   const detailId = ref('');
   const detailLoading = ref(false);
   const detailError = ref('');
@@ -696,8 +704,24 @@
     detailLoading.value = true;
     detailError.value = '';
     try {
-      const payload = await fetchVisitorProfile(id);
-      detail.value = payload?.profile ?? payload ?? null;
+      const [payload, visits] = await Promise.all([
+        fetchVisitorProfile(id),
+        fetchVisitorVisits(id).catch(() => []),
+      ]);
+      const latest = Array.isArray(visits) ? (visits.find((item: any) => item?.isBot !== true) || visits[0] || null) : null;
+      visitData.value = latest;
+      const profile = payload?.profile ?? payload ?? null;
+      detail.value = latest && profile
+        ? {
+            ...profile,
+            browser: profile.browser || latest.browser || '',
+            os: profile.os || latest.os || '',
+            device: profile.device || latest.device || '',
+            last_path: profile.last_path || latest.path || '',
+            country: profile.country || latest.country || '',
+            last_seen_at: profile.last_seen_at || latest.occurredAt || latest.occurred_at || null,
+          }
+        : profile;
     } catch (reason: any) {
       detailError.value = backendMessage(reason, '画像详情加载失败，请稍后重试。');
     } finally {
@@ -713,9 +737,8 @@
     if (!detailId.value) return;
     refreshing.value = true;
     try {
-      const payload = await refreshVisitorProfile(detailId.value);
-      const next = payload?.profile ?? payload ?? null;
-      if (next) detail.value = next;
+      await refreshVisitorProfile(detailId.value);
+      await loadDetail(detailId.value);
       Message.success('已重新分析访客画像');
       await load();
     } catch (reason: any) {

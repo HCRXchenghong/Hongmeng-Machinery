@@ -1,6 +1,6 @@
 <template>
   <a-card :bordered="false">
-    <template #title>App 版本</template>
+    <template #title>应用版本</template>
     <template #extra>
       <a-space>
         <a-button :loading="loading" @click="load">刷新</a-button>

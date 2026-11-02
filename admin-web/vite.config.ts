@@ -21,11 +21,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 5176,
     proxy: {
-      '/site-admin-api': 'http://127.0.0.1:1337',
-      '/site-admin-auth': 'http://127.0.0.1:1337',
-      '/openapi.json': 'http://127.0.0.1:1337',
+      '/site-admin-api': 'http://127.0.0.1:1338',
+      '/site-admin-auth': 'http://127.0.0.1:1338',
+      '/openapi.json': 'http://127.0.0.1:1338',
+      // 商品图片库由官网 public/ 统一提供，HMR 管理台也复用同一份原创素材。
+      '/assets': 'http://127.0.0.1:1338',
     },
   },
   build: {

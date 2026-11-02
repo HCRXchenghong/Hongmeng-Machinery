@@ -2,24 +2,13 @@
   <a-row :gutter="16">
     <a-col :span="14">
       <a-card :bordered="false" title="AI 接待设置">
+        <AiCapabilityStatus capability="reception" />
         <a-form :model="form" layout="vertical">
           <a-form-item>
             <a-checkbox v-model="form.enabled">启用 AI 自动接待</a-checkbox>
           </a-form-item>
           <a-form-item label="接待模式">
             <a-select v-model="form.mode" :options="modeOptions" />
-          </a-form-item>
-          <a-form-item label="上游地址">
-            <a-input v-model="form.base_url" placeholder="https://api.openai.com/v1" />
-          </a-form-item>
-          <a-form-item label="API Key">
-            <a-input-password v-model="form.api_key" :placeholder="form.api_key_masked ? `已配置 ${form.api_key_masked}；留空不修改` : '请输入 API Key'" />
-          </a-form-item>
-          <a-form-item label="模型">
-            <a-select v-model="form.model" :options="modelOptions" allow-create allow-search />
-          </a-form-item>
-          <a-form-item label="协议">
-            <a-select v-model="form.api_type" :options="apiTypeOptions" />
           </a-form-item>
           <a-row :gutter="12">
             <a-col :span="8">
@@ -43,7 +32,6 @@
           </a-form-item>
           <a-space>
             <a-button type="primary" :loading="saving" @click="save">保存 AI 设置</a-button>
-            <a-button :loading="fetchingModels" @click="fetchModels">从上游获取模型</a-button>
             <a-button @click="testReply">测试回复</a-button>
           </a-space>
         </a-form>
@@ -69,12 +57,12 @@
   import { Message } from '@arco-design/web-vue';
   import {
     fetchAiCacheProbe,
-    fetchAiModels,
     fetchAiSettings,
     probeAiCache,
     testAiReply,
     updateAiSettings,
   } from '@/api/admin';
+  import AiCapabilityStatus from '@/components/ai/AiCapabilityStatus.vue';
 
   const form = reactive<any>({
     enabled: false,
@@ -89,12 +77,10 @@
     timeout_seconds: 20,
     system_prompt: '',
   });
-  const models = ref<string[]>([]);
   const saving = ref(false);
-  const fetchingModels = ref(false);
   const probing = ref(false);
   const probeResult = ref<any>(null);
-  const testInput = ref('你们的重型排水沟能承受多少吨？');
+  const testInput = ref('38 英寸鼓式粉碎机需要多大液压流量？');
   const testOutput = ref('');
 
   const modeOptions = [
@@ -102,15 +88,6 @@
     { label: '始终 AI', value: 'always_ai' },
     { label: '仅人工（不自动回复）', value: 'manual_only' },
   ];
-  const apiTypeOptions = [
-    { label: 'Chat Completions', value: 'chat_completions' },
-    { label: 'Responses', value: 'responses' },
-    { label: 'Anthropic Messages', value: 'anthropic_messages' },
-  ];
-  const modelOptions = computed(() => {
-    const values = [...new Set([form.model, ...models.value].filter(Boolean))];
-    return values.map((value) => ({ label: value, value }));
-  });
   const cacheText = computed(() => {
     const result = probeResult.value;
     if (!result) return '尚未探测。保存 AI 设置时会自动逐个实测模型缓存支持。';
@@ -150,23 +127,6 @@
     }
   }
 
-  async function fetchModels() {
-    fetchingModels.value = true;
-    try {
-      const payload: Record<string, unknown> = {
-        base_url: form.base_url,
-        api_type: form.api_type,
-        timeout_seconds: Number(form.timeout_seconds),
-      };
-      if (form.api_key) payload.api_key = form.api_key;
-      const result = await fetchAiModels(payload);
-      models.value = result.models || [];
-      Message.success(`已获取 ${models.value.length} 个上游模型`);
-    } finally {
-      fetchingModels.value = false;
-    }
-  }
-
   async function fetchCacheProbe() {
     try {
       probeResult.value = await fetchAiCacheProbe();
@@ -178,7 +138,7 @@
   async function probe() {
     probing.value = true;
     try {
-      await probeAiCache(models.value.length ? models.value : [form.model]);
+      await probeAiCache(form.model ? [form.model] : []);
       Message.success('缓存探测已启动');
       setTimeout(() => fetchCacheProbe(), 2000);
     } finally {

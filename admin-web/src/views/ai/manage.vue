@@ -1,78 +1,57 @@
 <template>
-  <a-card :bordered="false" class="ai-manage">
-    <template #title>AI 管理</template>
-    <template #extra>
-      <a-typography-text type="secondary" class="head-hint">
-        供应商与能力勾选、各能力参数、故障转移链、限额都在下面的页签里；知识库见左侧子导航。
-      </a-typography-text>
-    </template>
+  <div class="ai-manage-page">
+    <a-page-header :show-back="false" :title="sectionMeta.title" :subtitle="sectionMeta.subtitle" />
+    <a-alert type="info" class="mb-4">{{ sectionMeta.hint }}</a-alert>
 
-    <a-tabs v-model:active-key="activeTab" lazy-load type="line" size="large">
-      <a-tab-pane key="providers" title="供应商与能力">
-        <AiProvidersPanel />
-      </a-tab-pane>
-      <a-tab-pane key="reception" title="接待 AI">
-        <AiReceptionPanel />
-      </a-tab-pane>
-      <a-tab-pane key="translation" title="翻译 AI">
-        <AiTranslationPanel />
-      </a-tab-pane>
-      <a-tab-pane key="seo" title="AI SEO">
-        <AiSeoPanel />
-      </a-tab-pane>
-      <a-tab-pane key="image" title="AI 生图">
-        <AiImagePanel />
-      </a-tab-pane>
-      <a-tab-pane key="bindings" title="故障转移链（高级）">
-        <AiBindingsPanel />
-      </a-tab-pane>
-      <a-tab-pane key="limits" title="限额">
-        <AiLimitsPanel />
-      </a-tab-pane>
-    </a-tabs>
-  </a-card>
+    <section v-if="section === 'models'" class="ai-section">
+      <a-tabs v-model:active-key="modelTab" lazy-load type="line" size="large">
+        <a-tab-pane key="providers" title="供应商与默认能力">
+          <AiProvidersPanel />
+        </a-tab-pane>
+        <a-tab-pane key="backup" title="备用模型">
+          <AiBindingsPanel />
+        </a-tab-pane>
+      </a-tabs>
+    </section>
+    <section v-else-if="section === 'reception'" class="ai-section"><AiReceptionPanel /></section>
+    <section v-else-if="section === 'translation'" class="ai-section"><AiTranslationPanel /></section>
+    <section v-else-if="section === 'image'" class="ai-section"><AiImagePanel /></section>
+    <section v-else-if="section === 'limits'" class="ai-section"><AiLimitsPanel /></section>
+  </div>
 </template>
 
 <script lang="ts" setup>
-  import { ref, watch } from 'vue';
+  import { computed, ref } from 'vue';
   import { useRoute } from 'vue-router';
   import AiProvidersPanel from './providers.vue';
   import AiReceptionPanel from './reception.vue';
   import AiTranslationPanel from './translation.vue';
-  import AiSeoPanel from './seo.vue';
   import AiImagePanel from './image.vue';
   import AiBindingsPanel from './bindings.vue';
   import AiLimitsPanel from './limits.vue';
 
-  // 页签顺序与左侧子导航一致；能力参数按「每个能力一份配置」组织。
-  const TAB_KEYS = ['providers', 'reception', 'translation', 'seo', 'image', 'bindings', 'limits'];
+  type AiSection = 'models' | 'reception' | 'translation' | 'image' | 'limits';
+  const props = defineProps<{ section?: AiSection }>();
 
+  const SECTION_META: Record<AiSection, { title: string; subtitle: string; hint: string }> = {
+    models: { title: '模型配置', subtitle: '供应商、默认能力与备用模型', hint: '先在「供应商与默认能力」中为每种能力选择默认供应商；需要多供应商自动切换时，再到「备用模型」配置候选顺序。' },
+    reception: { title: '接待 AI', subtitle: '接待提示词、知识库引用与回复策略', hint: '接待 AI 只负责生成建议或自动回复；访客转人工、黑名单和排队策略在「客服 → 服务策略」中配置。' },
+    translation: { title: '翻译 AI', subtitle: '自动翻译开关、批次与超时', hint: '这里只维护翻译能力；翻译进度、语言版本和重译任务在「官网 → 多语言内容」中查看。' },
+    image: { title: 'AI 生图', subtitle: '商品与场景图片生成', hint: '生成的图片先进入媒体素材库，确认后再用于商品或页面。' },
+    limits: { title: '调用限额', subtitle: '访客、会话与 AI 调用频率上限', hint: '限额对所有 AI 能力生效；0 表示不限制。' }
+  };
+
+  const section = computed<AiSection>(() => props.section || 'models');
+  const sectionMeta = computed(() => SECTION_META[section.value]);
   const route = useRoute();
-
-  // 兼容旧入口：/ai/reception、/ai/image 等别名路径落到同名页签；也支持 ?tab=xxx 直达。
-  // 普通 /ai/manage（无 tab 参数）保持当前页签，避免点侧边栏「AI 管理」时被打回第一个页签。
-  function tabFromRoute(current: string): string {
-    const queryTab = route.query?.tab;
-    if (typeof queryTab === 'string' && TAB_KEYS.includes(queryTab)) {
-      return queryTab;
-    }
-    const segment = route.path.split('/').filter(Boolean).pop() || '';
-    return segment !== 'manage' && TAB_KEYS.includes(segment) ? segment : current;
-  }
-
-  const activeTab = ref(tabFromRoute('providers'));
-
-  watch(
-    () => route.fullPath,
-    () => {
-      const next = tabFromRoute(activeTab.value);
-      if (next !== activeTab.value) activeTab.value = next;
-    }
-  );
+  const modelTab = ref<'providers' | 'backup'>(route.query.tab === 'bindings' ? 'backup' : 'providers');
 </script>
 
 <style scoped>
-  .head-hint {
-    font-size: 12px;
+  .ai-manage-page {
+    min-height: calc(100vh - 100px);
+  }
+  .ai-section {
+    display: block;
   }
 </style>

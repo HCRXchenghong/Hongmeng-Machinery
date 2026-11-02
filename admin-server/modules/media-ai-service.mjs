@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
+import sharp from 'sharp';
 
 const DEFAULT_MODELS = ['gpt-image-1', 'dall-e-3', 'dall-e-2'];
 const ALLOWED_SIZES = new Set(['auto', '256x256', '512x512', '1024x1024', '1024x1536', '1536x1024', '1792x1024', '1024x1792']);
 const ALLOWED_QUALITIES = new Set(['auto', 'low', 'medium', 'high', 'standard', 'hd']);
+const DEFAULT_SAFETY_PROMPT = '画面中不要出现任何品牌 logo、商标、文字、水印或第三方品牌标识；不要模仿现有品牌。';
 
 function commaList(value, fallback = []) {
   const items = String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
@@ -37,6 +39,7 @@ export function createMediaAiService({
   downloadHosts = process.env.ADMIN_AI_IMAGE_DOWNLOAD_HOSTS || 'api.openai.com,oaidalleapiprodscus.blob.core.windows.net',
   configuredModels = process.env.ADMIN_AI_IMAGE_MODELS || '',
   requestTimeoutMs = process.env.ADMIN_AI_REQUEST_TIMEOUT_MS || 180_000,
+  safetyPrompt = process.env.ADMIN_AI_IMAGE_SAFETY_PROMPT || DEFAULT_SAFETY_PROMPT,
   fetchImpl = fetch,
   resolveProvider = null
 }) {
@@ -132,11 +135,22 @@ export function createMediaAiService({
     while (previews.size > 12) previews.delete(previews.keys().next().value);
   }
 
+  // 厂商模型可能不遵守 size 参数；从 PNG 头读取实际尺寸，预览页如实提示。
+  function pngDimensions(buffer) {
+    if (!Buffer.isBuffer(buffer) || buffer.length < 24) return { width: null, height: null };
+    if (buffer.toString('ascii', 1, 4) !== 'PNG') return { width: null, height: null };
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+
   async function generateBytes({ prompt, model, size = '1024x1024', quality = 'auto' }) {
     const upstream = await effectiveUpstream();
-    if (!upstream.apiKey) throw new Error('未配置 ADMIN_OPENAI_IMAGE_API_KEY，AI 生图暂不可用。');
-    const cleanPrompt = String(prompt || '').trim();
-    if (!cleanPrompt || cleanPrompt.length > 4000) throw new Error('生图提示词必须在 1–4000 字之间。');
+    if (!upstream.apiKey) throw new Error('生图模型未配置：请在「AI 能力 → 模型配置」绑定生图供应商与模型。');
+    const rawPrompt = String(prompt || '').trim();
+    if (!rawPrompt) throw new Error('生图提示词必须在 1–4000 字之间。');
+    // 安全约束由后台配置，可为空（关闭）；图片模型容易“脑补”第三方品牌。
+    const brandSafety = String(safetyPrompt || '').trim();
+    if (rawPrompt.length + (brandSafety ? brandSafety.length + 2 : 0) > 4000) throw new Error('生图提示词过长，请精简后重试。');
+    const cleanPrompt = brandSafety ? `${rawPrompt}\n\n${brandSafety}` : rawPrompt;
     // 绑定供应商时以绑定模型为准；未绑定时保持调用方选择/本地默认模型。
     const selectedModel = upstream.model || model || upstream.defaultModel;
     if (!upstream.modelAllowlist.has(selectedModel) && !modelCache?.models?.includes(selectedModel)) throw new Error('所选 AI 模型未在后台允许列表中。');
@@ -173,10 +187,13 @@ export function createMediaAiService({
     } else {
       throw new Error('AI 接口未返回可入库的图片。');
     }
+    const dimensions = pngDimensions(image);
     return {
       image,
+      width: dimensions.width,
+      height: dimensions.height,
       name: `ai-${new Date().toISOString().replace(/[:.]/g, '-')}.png`,
-      metadata: { ai: { prompt: cleanPrompt, model: selectedModel, size, quality, revisedPrompt: result.revised_prompt || '' } }
+      metadata: { ai: { prompt: rawPrompt, model: selectedModel, size, quality, revisedPrompt: result.revised_prompt || '' } }
     };
   }
 
@@ -202,6 +219,8 @@ export function createMediaAiService({
       id,
       dataUrl: `data:image/png;base64,${generated.image.toString('base64')}`,
       bytes: generated.image.length,
+      width: generated.width,
+      height: generated.height,
       expiresAt: new Date(expiresAtMs).toISOString(),
       ...generated.metadata.ai
     };
@@ -228,5 +247,24 @@ export function createMediaAiService({
     return previews.delete(String(previewId || ''));
   }
 
-  return { capability, models, generate, preview, commitPreview, discardPreview };
+  // 预览结果导出：PNG 直接返回原图，WebP 用 sharp 转码；两种格式都走鉴权路由。
+  async function exportPreview({ previewId, format = 'png' } = {}) {
+    prunePreviews();
+    const generated = previews.get(String(previewId || ''));
+    if (!generated) throw new Error('AI 临时结果不存在或已过期，请重新生成。');
+    const normalized = String(format || 'png').toLowerCase() === 'webp' ? 'webp' : 'png';
+    const buffer = normalized === 'webp'
+      ? await sharp(generated.image).webp({ quality: 90 }).toBuffer()
+      : generated.image;
+    return {
+      buffer,
+      format: normalized,
+      mime: normalized === 'webp' ? 'image/webp' : 'image/png',
+      filename: generated.name.replace(/\.png$/i, `.${normalized}`),
+      width: generated.width,
+      height: generated.height
+    };
+  }
+
+  return { capability, models, generate, preview, commitPreview, discardPreview, exportPreview };
 }

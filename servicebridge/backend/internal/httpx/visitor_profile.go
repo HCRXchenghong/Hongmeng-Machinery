@@ -1,8 +1,12 @@
 package httpx
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -39,7 +43,7 @@ type visitorProfileSettingsPatchRequest struct {
 }
 
 // registerVisitorProfileRoutes 注册画像相关的全部路由。
-func registerVisitorProfileRoutes(mux *http.ServeMux, service *app.Service, trustedProxies trustedProxySet) {
+func registerVisitorProfileRoutes(mux *http.ServeMux, service *app.Service, trustedProxies trustedProxySet, geoIPUploadDir string) {
 	mux.HandleFunc("GET /api/admin/visitor-profile/settings", func(w http.ResponseWriter, r *http.Request) {
 		if !isAdmin(service, r) {
 			writeError(w, store.ErrForbidden)
@@ -111,6 +115,102 @@ func registerVisitorProfileRoutes(mux *http.ServeMux, service *app.Service, trus
 		recordAuditFromRequest(service, r, trustedProxies, "visitor_profile_settings.update",
 			"visitor_profile_settings", "1", "更新访客画像配置")
 		writeJSON(w, http.StatusOK, map[string]any{"settings": updated})
+	})
+
+	mux.HandleFunc("POST /api/admin/visitor-profile/geoip-upload", func(w http.ResponseWriter, r *http.Request) {
+		if !isAdmin(service, r) {
+			writeError(w, store.ErrForbidden)
+			return
+		}
+		const maxBytes = int64(128 << 20)
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes+4<<20)
+		if err := r.ParseMultipartForm(8 << 20); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_upload", "message": "无法读取上传文件；GeoLite2 mmdb 最大 128 MB。"})
+			return
+		}
+		if r.MultipartForm != nil {
+			defer r.MultipartForm.RemoveAll()
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "file_required", "message": "请选择 GeoLite2-City.mmdb 文件。"})
+			return
+		}
+		defer file.Close()
+		if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(header.Filename)), ".mmdb") {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_extension", "message": "只接受 .mmdb 文件（GeoLite2-City.mmdb）。"})
+			return
+		}
+		dir := strings.TrimSpace(geoIPUploadDir)
+		if dir == "" {
+			dir = "geoip"
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "storage_unavailable", "message": "无法创建 GeoIP 存储目录。"})
+			return
+		}
+		temp, err := os.CreateTemp(dir, ".geolite2-*.tmp")
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "storage_unavailable", "message": "无法写入 GeoIP 文件。"})
+			return
+		}
+		tempName := temp.Name()
+		cleanup := true
+		defer func() {
+			if cleanup {
+				_ = os.Remove(tempName)
+			}
+		}()
+		written, copyErr := io.Copy(temp, io.LimitReader(file, maxBytes+1))
+		closeErr := temp.Close()
+		if copyErr != nil || closeErr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "upload_failed", "message": "GeoLite2 文件写入失败。"})
+			return
+		}
+		if written > maxBytes {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{"error": "file_too_large", "message": "GeoLite2 mmdb 不能超过 128 MB。"})
+			return
+		}
+		if written < 100*1024 {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "file_too_small", "message": "文件过小，看起来不是完整的 GeoLite2 mmdb。"})
+			return
+		}
+		check, err := os.Open(tempName)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "upload_failed", "message": "无法校验 GeoLite2 文件。"})
+			return
+		}
+		tail := make([]byte, 128*1024)
+		if _, err := check.Seek(-int64(len(tail)), io.SeekEnd); err == nil {
+			_, _ = io.ReadFull(check, tail)
+		}
+		_ = check.Close()
+		if !bytes.Contains(tail, []byte("MaxMind.com")) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_mmdb", "message": "文件不是有效的 MaxMind mmdb（缺少 MaxMind.com 标记）。"})
+			return
+		}
+		target := filepath.Join(dir, "GeoLite2-City.mmdb")
+		if err := os.Rename(tempName, target); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "upload_failed", "message": "无法保存 GeoLite2 文件。"})
+			return
+		}
+		cleanup = false
+		absolute, err := filepath.Abs(target)
+		if err != nil {
+			absolute = target
+		}
+		updated, err := service.UpdateVisitorProfileSettings(domain.VisitorProfileSettingsPatch{GeoIPDir: &absolute})
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		recordAuditFromRequest(service, r, trustedProxies, "visitor_profile.geoip_upload",
+			"visitor_profile_settings", "1", "上传 GeoLite2-City.mmdb 并启用本地地理库")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"settings": updated,
+			"path":     absolute,
+			"bytes":    written,
+		})
 	})
 
 	mux.HandleFunc("GET /api/admin/visitor-profiles", func(w http.ResponseWriter, r *http.Request) {

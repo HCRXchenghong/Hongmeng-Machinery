@@ -8,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const distDir = path.resolve(process.env.STATIC_DIR || path.join(ROOT, 'frontend', 'dist'));
 const host = process.env.FRONTEND_HOST || '127.0.0.1';
-const port = Number(process.env.FRONTEND_PORT || 4321);
-const adminOrigin = (process.env.STATIC_ADMIN_ORIGIN || process.env.PUBLIC_ADMIN_URL || 'http://127.0.0.1:1337').replace(/\/$/, '');
+const port = Number(process.env.FRONTEND_PORT || 4331);
+const adminOrigin = (process.env.STATIC_ADMIN_ORIGIN || process.env.PUBLIC_ADMIN_URL || 'http://127.0.0.1:1338').replace(/\/$/, '');
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -94,11 +94,30 @@ http.createServer(async (req, res) => {
       await proxyLeadRequest(req, res);
       return;
     }
-    const file = await resolveFile(requestUrl.pathname);
+    if (requestUrl.pathname === '/sitemap-products.xml' && req.method === 'GET') {
+      const upstream = await fetch(`${adminOrigin}/site-admin-api/shop/sitemap-products.xml`);
+      res.writeHead(upstream.status, {
+        'Content-Type': upstream.headers.get('content-type') || 'application/xml; charset=utf-8',
+        'Cache-Control': upstream.headers.get('cache-control') || 'no-store'
+      });
+      res.end(Buffer.from(await upstream.arrayBuffer()));
+      return;
+    }
+    // Product records live in PostgreSQL, so their slugs are not known when
+    // Astro emits static files. Reuse the product-detail shell for slug URLs;
+    // Storefront resolves the selected product through the public API.
+    const isChinese = /^\/zh(?:\/|$)/i.test(requestUrl.pathname);
+    const isArabic = /^\/ar(?:\/|$)/i.test(requestUrl.pathname);
+    const languagePrefix = isChinese ? '/zh' : isArabic ? '/ar' : '';
+    const unlocalizedPath = languagePrefix ? requestUrl.pathname.replace(/^\/(?:zh|ar)(?=\/|$)/i, '') || '/' : requestUrl.pathname;
+    const productSlugPath = /^\/shop\/product\/[a-z0-9-]+\/?$/i.test(unlocalizedPath);
+    const localizedPath = languagePrefix ? `${languagePrefix}${unlocalizedPath}` : unlocalizedPath;
+    let file = await resolveFile(localizedPath);
+    if (!file && productSlugPath) file = await resolveFile(`${languagePrefix}/shop/product/`);
     if (!file) {
       // 本地也按生产行为返回真正的 404 页（Astro 产物里的 404.html），
       // 这样后台配置的 404 文案在本地就能验证，而不是只回一句 "not found"。
-      const notFoundPage = await resolveFile('/404.html').catch(() => null);
+      const notFoundPage = await resolveFile(isChinese ? '/zh/404/' : isArabic ? '/ar/404/' : '/404.html').catch(() => null);
       if (notFoundPage) {
         res.writeHead(404, {
           'Content-Type': 'text/html; charset=utf-8',

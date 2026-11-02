@@ -1,0 +1,33 @@
+---
+import AccountMenu from './AccountMenu';
+import { localizeHref, translate, type Locale } from '../i18n';
+
+const { locale = 'en' } = Astro.props as { locale?: Locale };
+const brand = translate(locale, 'Hongmeng Machinery');
+const homeHref = localizeHref(locale, '/');
+const shopHref = localizeHref(locale, '/shop/');
+const cartHref = localizeHref(locale, '/cart/');
+const nav = [
+  { href: homeHref, label: translate(locale, 'Home') },
+  { href: shopHref, label: translate(locale, 'Shop attachments') },
+  { href: localizeHref(locale, '/solutions/'), label: translate(locale, 'Applications') },
+  { href: localizeHref(locale, '/contact/'), label: translate(locale, 'Contact') }
+];
+---
+<header class="hm-header hm-account-header">
+  <div class="hm-header-inner">
+    <a class="hm-brand" href={homeHref} aria-label={`${brand} · ${translate(locale, 'Home')}`}>
+      <img src="/assets/hongmeng-logo.svg" alt="" class="hm-brand-logo" />
+      <span class="hm-brand-name">{brand}<small>HONGMENG MACHINERY</small></span>
+    </a>
+    <nav class="hm-desktop-nav" aria-label={translate(locale, 'Primary navigation')}>
+      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+    </nav>
+    <div class="hm-header-actions hm-header-actions-right">
+      <a class="hm-account-cart" href={cartHref} aria-label={translate(locale, 'Cart')}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+      </a>
+      <AccountMenu client:load locale={locale} />
+    </div>
+  </div>
+</header>

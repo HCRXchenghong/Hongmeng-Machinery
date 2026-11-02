@@ -1,13 +1,14 @@
 <template>
   <div class="workspace">
     <!-- 两个来源，两个视图：会话询盘（引擎 conversations）/ 表单线索（官网 site_leads）。 -->
+    <a-page-header :show-back="false" title="会话与询盘" subtitle="在线会话、表单留言与访客需求" />
     <a-tabs
       v-model:active-key="activeTab"
       class="workspace-tabs"
       data-testid="inquiries-tabs"
     >
-      <a-tab-pane key="conversations" title="会话询盘" />
-      <a-tab-pane key="leads" title="表单线索" />
+      <a-tab-pane key="conversations" title="在线会话" />
+      <a-tab-pane key="leads" title="表单留言" />
     </a-tabs>
 
     <template v-if="activeTab === 'conversations'">
@@ -178,8 +179,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
-  import { useRoute } from 'vue-router';
+  import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+  import { useRoute, useRouter } from 'vue-router';
   import { Message, Modal } from '@arco-design/web-vue';
   import {
     closeConversation,
@@ -517,14 +518,25 @@
   }
 
   const route = useRoute();
+  const router = useRouter();
+  watch(activeTab, (tab) => {
+    const query = { ...route.query };
+    if (tab === 'leads') query.tab = 'leads';
+    else delete query.tab;
+    if (normalizeTabFromQuery() === tab) return;
+    router.replace({ query });
+  });
+  function normalizeTabFromQuery() {
+    return route.query.tab === 'leads' ? 'leads' : 'conversations';
+  }
 
   onMounted(async () => {
-    // 深链：/operations/inquiries?tab=leads 直接落到表单线索；默认会话询盘。
+    // 深链：/service/inquiries?tab=leads 直接落到表单留言；默认在线会话。
     const tab = typeof route.query.tab === 'string' ? route.query.tab.trim() : '';
     if (tab === 'leads') activeTab.value = 'leads';
     await load();
     await loadAlerts();
-    // 支持从「排队队列」等页面深链：/operations/inquiries?conversation=<id>
+    // 支持从「排队」等页面深链：/service/inquiries?conversation=<id>
     const deepLinkId = typeof route.query.conversation === 'string' ? route.query.conversation.trim() : '';
     if (deepLinkId) {
       activeTab.value = 'conversations';

@@ -1,89 +1,92 @@
-# ASTREVA 独立站
+# 宏盟机械独立站
 
-本仓库包含 Astro 官网、Arco Design Pro Vue 统一控制台、构建发布服务和 ServiceBridge 在线客服。
+面向海外客户的机械设备独立站，包含官网、统一控制台与在线客服三部分：官网负责商品展示与下单，控制台负责商品、订单、内容与配置，客服负责访客接待。
 
-统一控制台使用 `1337` 端口和一次 2FA 登录，侧栏包含工作台、客服管理（账号 / 服务评价）、运营（咨询单 / 关键词 / 审计日志）、应用管理（App 版本 / API 管理）、内容管理（官网内容 / 网站翻译 / R2 素材库）和系统设置（营业时间与联系方式 / AI / 推送）。客服使用 Flutter「在线客服」App 接待访客。
+## 技术栈
 
-## 总清单
+| 模块   | 技术                                                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 官网   | [Astro](https://astro.build/) 7、React 19、Tailwind CSS 4、[Flowbite React](https://github.com/themesberg/flowbite-react)（MIT）、lucide-react |
+| 控制台 | Vue 3、[Arco Design Vue](https://github.com/arco-design/arco-design-vue)（MIT）、Vite                                                          |
+| 服务端 | Node.js、PostgreSQL、S3 兼容对象存储                                                                                                           |
+| 客服   | Go（ServiceBridge）                                                                                                                            |
 
-- [二期功能总清单：已实现 / 需你侧配置 / 未做与已知限制](docs/FEATURE_STATUS.md)
-
-## 安全与合规文档
-
-- [安全设计说明书](docs/security/安全设计说明书.md)
-- [等保三级自评表](docs/security/等保三级自评表.md)
-- [基线加固清单](docs/security/基线加固清单.md)
-- [日志留存与审计规范](docs/security/日志留存与审计规范.md)
-- [自动翻译与 AI 客户画像实施规格](docs/AI_TRANSLATION_AND_PROFILE.md)
+官网语言为 `/` 英文、`/zh/` 中文、`/ar/` 阿拉伯语；所有语言在构建期完成服务端本地化，刷新时不会再先显示英文再切换。
 
 ## 目录
 
-- `frontend/`：Astro 7 + Tailwind CSS v4 + Preline UI 官网，构建产物位于 `frontend/dist/`；中文在根路径，英语/阿拉伯语在 `/en/`、`/ar/`。设计语言、图标系统与约定见 [frontend/README.md](frontend/README.md)。
-- `admin-web/`：基于 Arco Design Pro Vue（MIT）的统一控制台 SPA，构建产物 `admin-web/dist/`，由 `admin-server` 同源托管在 `/site-admin/`。
-- `admin-server/`：控制台 API、官网内容、媒体、咨询单、2FA、推送配置与发布管理。
-- `servicebridge/backend/`：Go API、WebSocket、PostgreSQL/Redis、AI、推送（FCM/APNs）和上传服务。
-- `servicebridge/apps/user-web/`：官网嵌入的访客聊天端。
-- `servicebridge/apps/agent-mobile/`：iOS/Android 客服 App。
-- `deployments/ubuntu/`：官网、控制台和客服系统的生产 Compose（Caddy 直接终止 TLS）。
-- `admin-server/seed/`：只读首次初始化种子；运行数据仅保存于 PostgreSQL 和对象存储。
+| 路径             | 内容                                  |
+| ---------------- | ------------------------------------- |
+| `frontend/`      | 官网前端                              |
+| `admin-web/`     | 管理控制台                            |
+| `admin-server/`  | 内容、商城、媒体、翻译与账号 API      |
+| `servicebridge/` | 在线客服（Go 后端、访客端、坐席 App） |
+| `deployments/`   | 生产部署与监控配置                    |
+| `scripts/`       | 构建、备份、恢复与校验脚本            |
 
-## 本地运行
+## 功能
+
+### 官网
+
+首页、关于、方案、商品列表与分类搜索、商品详情、购物车、收货信息、订单提交、联系表单、动态与政策页。商品支持图册、详情文案与按国家/地区的实时运费报价。
+
+### 控制台
+
+- **商城**：商品库存、订单处理、客户资料、结算与运费、支付、店铺政策各自独立页面。
+- **官网**：页面内容按区块编辑，SEO 支持 AI 生成与人工逐页修改（标题、描述、关键词、分享图），AI 生图支持模型配置与 PNG/WebP 导出。
+- **系统**：邮件发送（SMTP）、登录方式、推送、AI 供应商与能力绑定。
+- **访客画像**：第一方访问上报与聊天 `visitor_ref` 打通，画像卡显示浏览器、OS、设备与最近路径；国家/时区需配置公网 IP 与 GeoIP。
+
+### 订单与支付
+
+- 下单在 PostgreSQL 事务内读取真实价格并扣减库存，重复请求使用幂等标识，取消未付款订单回补库存。
+- 订单状态：待确认、已确认、已付款、备货、发货、完成。
+- 支付方式为人工确认、Stripe、PayPal。Stripe Checkout 已启用自动税费（Stripe Tax，需在 Stripe 后台完成税务登记）；退款申请在用户端 `/returns/` 提交，后台处理需超管邮箱与密码二次确认后调用 Stripe Refund。
+- 注册必须邮箱验证码；游客订单可在下单后用验证码保存到账户。
+
+### API
+
+- `/site-admin-api/shop/*`：公开商品与下单接口。
+- `/site-admin-api/commerce/*`：需要 2FA 管理员会话。
+- 完整端点列于 `/openapi.json`。
+
+## 本机运行
 
 ```bash
-npm install                 # 依赖装在项目内缓存；postinstall 会在缺失时自动恢复 rolldown 原生绑定
+npm install
 cp .env.example .env
-npm run build:admin-web     # 首次需要；run-local-stack 也会在缺失时自动构建
+npm run build:admin-web
+npm run build:frontend
 bash scripts/run-local-stack.sh
 ```
 
-启动后访问：
+| 服务     | 地址                                |
+| -------- | ----------------------------------- |
+| 官网     | `http://127.0.0.1:4331/`            |
+| 控制台   | `http://127.0.0.1:1338/site-admin/` |
+| 客服 API | `http://127.0.0.1:8081/`            |
+| 客服网页 | `http://127.0.0.1:5175/`            |
 
-- 官网：`http://127.0.0.1:4321/`
-- 统一控制台：`http://127.0.0.1:1337/site-admin/`
-- 控制台登录：`http://127.0.0.1:1337/site-admin/login`（旧地址 `/admin-2fa` 会 302 到这里）
-- 客服访客端：`http://127.0.0.1:5173/?embed=1`
-- 客服 API：`http://127.0.0.1:8080/healthz`
-- 构建服务：`http://127.0.0.1:8787/healthz`
+首次使用：在控制台创建管理员并绑定 2FA，然后进入「商城 → 商品库存」录入商品。默认商品目录为空，商品图片、价格、运费与服务条款需要在上线前由运营人员录入并核对。
 
-质量检查：`npm run check`（类型 + lint + 内容契约）或 `npm run verify`（完整 11 项验证）。
+## 内容维护位置
 
-开发控制台时可以用热更新：`npm run dev:admin-web`（Vite 起在 `5174`，把 `/site-admin-api` 与 `/site-admin-auth` 代理到 `1337`）。
+| 内容           | 位置                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------ |
+| 英文源文案     | `frontend/src/views/Storefront.tsx`                                                  |
+| 各语言兜底文案 | `frontend/src/i18n/dictionaries/`                                                    |
+| 页脚社交媒体   | 后台「官网 → 页面内容 → 导航与页脚」，存于 `shop_settings.storefront_content.social` |
+| SEO            | 后台「官网 → SEO 设置」，存于 `shop_settings.storefront_content.seo`                 |
 
-首次进入控制台时，由站点管理员创建自己的邮箱、密码并绑定 2FA。客服账号在「客服管理 → 客服账号」中新建，随后用于登录「在线客服」App。本地脚本默认使用内存客服仓库，并让客服 API 监听 `0.0.0.0:8080` 供同一局域网的真机访问；重启后本地客服账号和会话会清空，生产 Compose 使用 PostgreSQL。
+页面内容、SEO 与商城数据在构建期注入；商品价格、库存与订单走实时 API。
 
-## 内容、翻译与客服
+## 生产部署
 
-前端构建从 `PUBLIC_ADMIN_URL/site-admin-api/public-content` 获取内容；`?locale=en|ar` 取对应译文，译文未就绪时接口返回 409，构建会跳过该语言而不是失败。
+使用 `deployments/ubuntu/` 下的 Compose，单独设置域名、数据库、S3 存储、强随机密钥与站点来源。上线前按 `deployments/ubuntu/.env.ubuntu.example` 逐项核对，并按实际服务商接入税费、物流报价与邮件通知。
 
-官网以中文 `zh-CN` 为唯一源内容。控制台「网站翻译」可配置 Chat Completions / Responses / Anthropic Messages 上游，API Key 使用主密钥加密存入 PostgreSQL。中文内容每次保存后，英语和阿拉伯语按同一修订号进入翻译队列；过时、失败或未配置的译文不会伪装成成功。
+## 运维
 
-控制台「内容管理 → 官网内容」里可以保存草稿并发布，也可以点击「预览草稿」把当前未保存内容构建到官网的 `/__preview/` 路径下核对，不影响线上。
-
-统一后台通过服务端代理访问客服引擎，浏览器不会保存客服引擎管理员密码。相关变量：
-
-- `SERVICEBRIDGE_API_URL`：客服 Go API 内网地址。
-- `SERVICEBRIDGE_ADMIN_ACCOUNT`、`SERVICEBRIDGE_ADMIN_PASSWORD`：控制台代理使用的客服引擎管理员凭证。
-- `PUBLIC_SERVICEBRIDGE_URL`：官网访客聊天公开地址。
-- `ADMIN_2FA_SESSION_SECRET`：控制台登录会话签名密钥。
-- `SERVICEBRIDGE_CORS_ALLOWED_ORIGINS`：客服 API/WebSocket 允许来源。
-
-生产环境必须使用强随机密码和密钥，不能沿用 `.env.example` 的本地示例值。内容闭环见 [docs/CMS_CLOSED_LOOP.md](docs/CMS_CLOSED_LOOP.md)，客服与 App 说明见 [servicebridge/README.md](servicebridge/README.md)。
-
-## 推送配置（后台可配）
-
-推送不再依赖构建期参数或环境变量：登录控制台 → **系统设置 → 推送设置**，填入 Firebase 客户端参数（`api_key` / `app_id` / `messaging_sender_id` / `project_id` / `storage_bucket`）与 Firebase 服务账号 JSON（用于自动换取 OAuth2 令牌），即可让 Android 生效；iOS 还需填入 APNs `.p8`、Key ID、Team ID 与 Bundle ID，并在 Xcode 打开 Push Notifications capability。
-
-App 启动时调用 `GET /api/app-config` 获取公开的 Firebase 参数；控制台提供「验证凭证」按钮（FCM 实际换取令牌、APNs 实际签名）。环境变量 `FCM_ACCESS_TOKEN` / `FCM_ENDPOINT` 仅作为数据库无配置时的兜底。
-
-## 验证
-
-```bash
-bash scripts/verify-all.sh        # 一键跑完下面所有检查
-npm run build:admin-web
-node --check admin-server/server.mjs
-npm run test:admin
-cd servicebridge/backend && go test ./... && go vet ./...
-cd ../apps/agent-mobile && dart analyze && flutter test
-```
-
-商业上线前仍需完成真机推送验证、正式签名发布、浏览器/真机端到端自动化、备份恢复演练和容量验收；统一记录在 [功能完善任务.md](功能完善任务.md)。
+- 每日备份：cron `0 2 * * *` 执行 `ASTREVA_BACKUP_DIR=/srv/astreva-backups scripts/backup-production.sh`，产出 `pg_dump` gzip 与 `.sha256`，默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`）。
+- 恢复演练：`scripts/restore-production.sh --yes <备份文件>`，先校验 SHA-256 与 gzip，再导入隔离库 `customer_service_restore`，不覆盖生产。
+- 对象存储需在供应商侧开启 versioning 与生命周期归档，媒体不在数据库备份内。
+- 告警规则与 Grafana 面板在 `deployments/ubuntu/monitoring/`。

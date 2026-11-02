@@ -147,7 +147,8 @@ func (s *Service) TestAIReply(ctx context.Context, userText string) (string, err
 	if userText == "" {
 		userText = "你好，请简单介绍一下你能提供什么帮助。"
 	}
-	settings := s.settingsWithCacheMode()
+	// 与真实接待链路一致：优先使用「模型配置」里 reception 能力的供应商绑定。
+	settings := s.aiSettingsFor("reception")
 	return s.ai.Reply(ctx, settings, s.store.ContactSettings(), nil, userText, ai.LangZh, "")
 }
 

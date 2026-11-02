@@ -8,6 +8,23 @@ import pg from 'pg';
 const { Pool } = pg;
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const migrationFile = path.join(moduleDir, '..', 'migrations', '001_cms.sql');
+const commerceMigrationFile = path.join(moduleDir, '..', 'migrations', '002_commerce.sql');
+const customerCommerceMigrationFile = path.join(moduleDir, '..', 'migrations', '003_customer-commerce.sql');
+const storefrontCommerceMigrationFile = path.join(moduleDir, '..', 'migrations', '004_storefront-commerce.sql');
+const inventoryPolicyMigrationFile = path.join(moduleDir, '..', 'migrations', '005-inventory-policy.sql');
+const productDetailMigrationFile = path.join(moduleDir, '..', 'migrations', '006-product-detail-copy.sql');
+const productGalleryMigrationFile = path.join(moduleDir, '..', 'migrations', '007-product-galleries.sql');
+const productAccuracyMigrationFile = path.join(moduleDir, '..', 'migrations', '008-product-accuracy.sql');
+const shippingModeMigrationFile = path.join(moduleDir, '..', 'migrations', '009-shipping-mode.sql');
+const quoteCheckoutMigrationFile = path.join(moduleDir, '..', 'migrations', '010-shipping-quote-checkout.sql');
+const cookieChoiceEntryMigrationFile = path.join(moduleDir, '..', 'migrations', '011-cookie-choice-entry.sql');
+const refundsTaxMigrationFile = path.join(moduleDir, '..', 'migrations', '012_refunds_tax.sql');
+const shippingZonesMigrationFile = path.join(moduleDir, '..', 'migrations', '013_shipping_zones.sql');
+const productShippingMigrationFile = path.join(moduleDir, '..', 'migrations', '018_product_shipping.sql');
+const partialRefundsMigrationFile = path.join(moduleDir, '..', 'migrations', '019_partial_refunds.sql');
+const orderConsentGuestMigrationFile = path.join(moduleDir, '..', 'migrations', '014_order_consent_guest.sql');
+const mailCodesMigrationFile = path.join(moduleDir, '..', 'migrations', '015_mail_and_email_codes.sql');
+const orderCartNonceMigrationFile = path.join(moduleDir, '..', 'migrations', '016_order_cart_nonce.sql');
 
 async function readJson(file, fallback) {
   try {
@@ -95,6 +112,23 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     if (!databaseUrl) throw new Error('CMS_STORE_DRIVER=postgres 时必须配置 DATABASE_URL。');
     if (!cipher.enabled) throw new Error('CMS_STORE_DRIVER=postgres 时必须配置 CMS_DATA_ENCRYPTION_KEY 或 DATA_ENCRYPTION_KEY。');
     await query(await fs.readFile(migrationFile, 'utf8'));
+    await query(await fs.readFile(commerceMigrationFile, 'utf8'));
+    await query(await fs.readFile(customerCommerceMigrationFile, 'utf8'));
+    await query(await fs.readFile(storefrontCommerceMigrationFile, 'utf8'));
+    await query(await fs.readFile(inventoryPolicyMigrationFile, 'utf8'));
+    await query(await fs.readFile(productDetailMigrationFile, 'utf8'));
+    await query(await fs.readFile(productGalleryMigrationFile, 'utf8'));
+    await query(await fs.readFile(productAccuracyMigrationFile, 'utf8'));
+    await query(await fs.readFile(shippingModeMigrationFile, 'utf8'));
+    await query(await fs.readFile(quoteCheckoutMigrationFile, 'utf8'));
+    await query(await fs.readFile(cookieChoiceEntryMigrationFile, 'utf8'));
+    await query(await fs.readFile(refundsTaxMigrationFile, 'utf8'));
+    await query(await fs.readFile(shippingZonesMigrationFile, 'utf8'));
+    await query(await fs.readFile(productShippingMigrationFile, 'utf8'));
+    await query(await fs.readFile(orderConsentGuestMigrationFile, 'utf8'));
+    await query(await fs.readFile(mailCodesMigrationFile, 'utf8'));
+    await query(await fs.readFile(partialRefundsMigrationFile, 'utf8'));
+    await query(await fs.readFile(orderCartNonceMigrationFile, 'utf8'));
     await query('SELECT 1');
     logger.info('[cms-store] PostgreSQL 已就绪。旧 JSON 只能通过 cms:cutover 一次性导入。');
   }
@@ -341,7 +375,9 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     const q = String(options.q || '').trim().slice(0, 200);
     const category = String(options.category || '').trim().slice(0, 80);
     const type = ['image', 'video', 'file'].includes(options.type) ? options.type : '';
-    const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+    // page 上限要卡住：offset=(page-1)*pageSize 一旦超过 bigint 会变成 "2.4e+21" 这种科学计数法，
+    // Postgres 直接语法错误（500）。
+    const page = Math.min(Math.max(1, Number.parseInt(options.page, 10) || 1), 1_000_000_000);
     const pageSize = Math.max(1, Math.min(Number.parseInt(options.pageSize, 10) || 24, 100));
     const where = [];
     const params = [];
@@ -777,6 +813,27 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     }
   }
 
+  /**
+   * 访客明细里的 IP 有两套写法：未同意的匿名行存的是网段（/24、/64），
+   * 同一行用完整 IP 去筛会筛不到，所以统一扩展成候选集合再匹配。
+   */
+  function ipFilterCandidates(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return [];
+    const candidates = [raw];
+    let candidate = raw.replace(/^\[([^\]]+)\](?::\d+)?$/, '$1').replace(/%[0-9a-z._-]+$/i, '').replace(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/, '$1').replace(/^::ffff:/i, '');
+    const ipv4 = candidate.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4) {
+      const octets = ipv4.slice(1).map(Number);
+      if (octets.every((item) => item >= 0 && item <= 255)) candidate = `${octets[0]}.${octets[1]}.${octets[2]}.0`;
+    } else if (candidate.includes(':')) {
+      const head = candidate.split('::')[0].split(':').filter(Boolean);
+      if (head.length >= 4) candidate = head.slice(0, 4).join(':');
+    }
+    if (candidate && !candidates.includes(candidate)) candidates.push(candidate);
+    return candidates;
+  }
+
   async function recordVisit(visit) {
     const row = {
       path: String(visit.path || '').slice(0, 300),
@@ -811,12 +868,26 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     );
   }
 
+  /** 访客自助删除：删掉该 visitor_id 的全部访问明细，返回删除行数。 */
+  async function deleteVisitsByVisitorId(visitorId) {
+    const key = String(visitorId || '').trim().slice(0, 64);
+    if (!key) return 0;
+    if (!usePostgres) {
+      const before = memoryVisits.length;
+      for (let i = memoryVisits.length - 1; i >= 0; i -= 1) if (memoryVisits[i].visitorId === key) memoryVisits.splice(i, 1);
+      return before - memoryVisits.length;
+    }
+    const result = await query('DELETE FROM site_analytics_visits WHERE visitor_id = $1', [key]);
+    return result.rowCount || 0;
+  }
+
   async function listVisits(options = {}) {
     const limit = Math.min(Math.max(Number(options.limit) || 100, 1), 500);
     const includeBots = Boolean(options.includeBots);
     if (!usePostgres) {
       let rows = memoryVisits.filter((item) => includeBots || !item.isBot);
-      if (options.ip) rows = rows.filter((item) => item.ip === options.ip);
+      const ips = ipFilterCandidates(options.ip);
+      if (ips.length) rows = rows.filter((item) => ips.includes(item.ip));
       if (options.visitorId) rows = rows.filter((item) => item.visitorId === options.visitorId);
       if (options.path) rows = rows.filter((item) => item.path.includes(options.path));
       return rows.slice(0, limit);
@@ -824,7 +895,8 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     const clauses = [];
     const params = [];
     if (!includeBots) clauses.push('is_bot = false');
-    if (options.ip) { params.push(options.ip); clauses.push(`ip = $${params.length}`); }
+    const ips = ipFilterCandidates(options.ip);
+    if (ips.length) { params.push(ips); clauses.push(`ip = ANY($${params.length})`); }
     if (options.visitorId) { params.push(options.visitorId); clauses.push(`visitor_id = $${params.length}`); }
     if (options.path) { params.push(`%${options.path}%`); clauses.push(`path ILIKE $${params.length}`); }
     if (options.since) { params.push(options.since); clauses.push(`occurred_at >= $${params.length}`); }
@@ -974,6 +1046,33 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     };
   }
 
+  const memoryMailLog = [];
+
+  async function logMail(entry = {}) {
+    const row = {
+      id: `mail_${crypto.randomUUID()}`,
+      recipient: String(entry.recipient || '').slice(0, 200),
+      purpose: String(entry.purpose || '').slice(0, 40),
+      status: entry.status === 'sent' ? 'sent' : 'failed',
+      detail: String(entry.detail || '').slice(0, 300),
+      created_at: new Date().toISOString()
+    };
+    if (!usePostgres) {
+      memoryMailLog.unshift(row);
+      if (memoryMailLog.length > 500) memoryMailLog.length = 500;
+      return row;
+    }
+    await query('INSERT INTO mail_log (id, recipient, purpose, status, detail) VALUES ($1,$2,$3,$4,$5)', [row.id, row.recipient, row.purpose, row.status, row.detail]);
+    return row;
+  }
+
+  async function listMailLog({ limit = 20 } = {}) {
+    const size = Math.min(Math.max(Number(limit) || 20, 1), 200);
+    if (!usePostgres) return memoryMailLog.slice(0, size);
+    const result = await query('SELECT id, recipient, purpose, status, detail, created_at FROM mail_log ORDER BY created_at DESC LIMIT $1', [size]);
+    return result.rows.map((row) => ({ ...row, created_at: toIso(row.created_at) }));
+  }
+
   async function recordSystemEvent(event = {}) {
     const row = {
       id: `evt_${crypto.randomUUID()}`,
@@ -1047,7 +1146,8 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
       let rows = [...memoryEvents];
       if (options.level) rows = rows.filter((item) => item.level === options.level);
       if (options.category) rows = rows.filter((item) => item.category === options.category);
-      if (options.ip) rows = rows.filter((item) => item.ip === options.ip);
+      const ips = ipFilterCandidates(options.ip);
+      if (ips.length) rows = rows.filter((item) => ips.includes(item.ip));
       if (options.query) {
         const needle = String(options.query).toLowerCase();
         rows = rows.filter((item) => [item.action, item.message, item.path, item.actorEmail, item.ip].join(' ').toLowerCase().includes(needle));
@@ -1058,7 +1158,8 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     const params = [];
     if (options.level) { params.push(options.level); clauses.push(`level = $${params.length}`); }
     if (options.category) { params.push(options.category); clauses.push(`category = $${params.length}`); }
-    if (options.ip) { params.push(options.ip); clauses.push(`ip = $${params.length}`); }
+    const ips = ipFilterCandidates(options.ip);
+    if (ips.length) { params.push(ips); clauses.push(`ip = ANY($${params.length})`); }
     if (options.since) { params.push(options.since); clauses.push(`occurred_at >= $${params.length}`); }
     if (options.query) {
       params.push(`%${options.query}%`);
@@ -1209,6 +1310,8 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     driver,
     init,
     close: () => pool?.end(),
+    query,
+    withTransaction,
     readContentRecord,
     readContent,
     saveContent,
@@ -1241,10 +1344,13 @@ export function createPlatformStore({ driver = 'json', databaseUrl = '', encrypt
     settleLatestPublish,
     listPublishJobs,
     recordVisit,
+    deleteVisitsByVisitorId,
     listVisits,
     visitById,
     analyticsSummary,
     recordSystemEvent,
+    logMail,
+    listMailLog,
     listSystemEvents,
     systemEventById,
     purgeSystemEvents,

@@ -26,16 +26,32 @@
           </a-typography-text>
         </a-form-item>
 
-        <a-form-item label="GeoLite2 数据库路径">
-          <div data-testid="vps-geoip-path">
+        <a-form-item label="GeoLite2 数据库">
+          <div data-testid="vps-geoip-path" class="geoip-row">
             <a-input
               v-model="form.geoip_db_path"
               placeholder="/data/GeoLite2-City.mmdb"
               allow-clear
             />
+            <a-button
+              type="outline"
+              :loading="geoUploading"
+              data-testid="vps-geoip-upload"
+              @click="pickGeoFile"
+            >
+              上传 GeoLite2-City.mmdb
+            </a-button>
+            <input
+              ref="geoFileInput"
+              type="file"
+              accept=".mmdb"
+              class="geoip-file"
+              @change="uploadGeoFile"
+            />
           </div>
           <a-typography-text type="secondary" class="hint">
-            容器内 mmdb 文件路径（如 /data/GeoLite2-City.mmdb）；留空则跳过本地库，直接走 CDN 头或第三方库。文件缺失时后端自动降级。
+            可直接上传 MaxMind GeoLite2-City.mmdb；上传后自动校验、保存并回填数据库路径。
+            文件只保存在服务端 GeoIP 目录，不会通过媒体库公开。运行时如果文件缺失会自动降级。
           </a-typography-text>
         </a-form-item>
 
@@ -181,7 +197,7 @@
             <span class="switch-text">{{ form.show_full_ip ? '客服端可见完整 IP' : '客服端只看脱敏 IP' }}</span>
           </div>
           <a-typography-text type="secondary" class="hint">
-            关闭后，客服 App 画像卡与运营中心画像列表只显示脱敏 IP（如 1.2.3.*）。
+            关闭后，客服 App 画像卡与客服 → 访客画像列表只显示脱敏 IP（如 1.2.3.*）。
           </a-typography-text>
         </a-form-item>
 
@@ -214,6 +230,7 @@
   import {
     fetchVisitorProfileSettings,
     updateVisitorProfileSettings,
+    uploadVisitorGeoIP,
   } from '@/api/admin';
 
   const emit = defineEmits<{ (e: 'saved', settings: Record<string, any>): void }>();
@@ -224,6 +241,8 @@
   const loadError = ref('');
   const thirdPartyKey = ref('');
   const clearThirdPartyKey = ref(false);
+  const geoUploading = ref(false);
+  const geoFileInput = ref<HTMLInputElement | null>(null);
 
   // 保留天数：契约只允许 0（永久）或 7–3650 天；控制台常规给 30/90/180。
   const RETENTION_DAYS_DEFAULT = 180;
@@ -363,6 +382,45 @@
     }
   }
 
+  function pickGeoFile() {
+    geoFileInput.value?.click();
+  }
+
+  async function uploadGeoFile(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!/\.mmdb$/i.test(file.name)) {
+      Message.error('只支持 .mmdb 文件，请选择 GeoLite2-City.mmdb。');
+      return;
+    }
+    if (file.size < 100 * 1024) {
+      Message.error('文件过小，看起来不是完整的 GeoLite2 mmdb。');
+      return;
+    }
+    if (file.size > 128 * 1024 * 1024) {
+      Message.error('GeoLite2 mmdb 不能超过 128 MB。');
+      return;
+    }
+    geoUploading.value = true;
+    try {
+      const payload = await uploadVisitorGeoIP(file);
+      const next = payload?.settings ?? payload;
+      if (next && typeof next === 'object' && Object.keys(next).length) {
+        applySettings(next);
+      } else if (payload?.path) {
+        form.geoip_db_path = payload.path;
+      }
+      Message.success('GeoLite2 已上传并启用');
+      emit('saved', settings.value);
+    } catch (reason: any) {
+      Message.error(backendMessage(reason, 'GeoLite2 上传失败'));
+    } finally {
+      geoUploading.value = false;
+    }
+  }
+
   // 局部更新：普通字段全量提交；第三方 Key 只在有输入或勾选清除时出现。
   function buildPayload() {
     const payload: Record<string, unknown> = {
@@ -424,6 +482,19 @@
     }
     .hint.inline {
       margin-top: 0;
+    }
+    .geoip-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .geoip-row .arco-input-wrapper {
+      flex: 1;
+      min-width: 260px;
+    }
+    .geoip-file {
+      display: none;
     }
     .switch-text {
       margin-left: 8px;

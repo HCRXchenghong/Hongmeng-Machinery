@@ -114,3 +114,47 @@ test('IP 国家头优先于浏览器语言，无国家头时才使用 Accept-Lan
   assert.equal(recommendedWebsiteLocale({ headers: { 'accept-language': 'ar-SA,ar;q=0.9' } }).locale, 'ar');
   assert.equal(recommendedWebsiteLocale({ headers: { 'accept-language': 'en-US,en;q=0.9' } }).locale, 'en');
 });
+
+test('上游漏译单个字段时单独重试，仍缺失则回退源文而不是整批失败', async () => {
+  const store = fakeStore();
+  let call = 0;
+  const fetchImpl = async (url, options = {}) => {
+    call += 1;
+    const request = JSON.parse(options.body);
+    const entries = JSON.parse(request.messages.at(-1).content.split('\n').at(-1));
+    // 第一次故意漏掉 description，第二次只返回缺失的字段。
+    const selected = call === 1 ? entries.filter((item) => !item.id.endsWith('description')) : entries;
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify(selected.map((item) => ({ id: item.id, text: `T:${item.text}` }))) } }] }),
+      { status: 200 }
+    );
+  };
+  const service = createWebsiteTranslationService({
+    platformStore: store,
+    fetchImpl,
+    logger: { error() {}, warn() {}, info() {} }
+  });
+  await service.saveSettings({
+    baseUrl: 'https://translator.example/v1',
+    apiType: 'chat_completions',
+    apiKey: 'secret-api-key',
+    model: 'translation-live',
+    batchSize: 10
+  });
+  await service.schedule(
+    { site: { locale: 'zh-CN' }, about: { title: '关于我们', description: '专业制造商' } },
+    9,
+    ['en']
+  );
+  const deadline = Date.now() + 2000;
+  let translation;
+  while (Date.now() < deadline) {
+    translation = await service.read('en');
+    if (translation?.status === 'ready') break;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(translation.status, 'ready');
+  assert.equal(translation.content.about.title, 'T:关于我们');
+  assert.equal(translation.content.about.description, 'T:专业制造商');
+  assert.ok(call >= 2, '漏译字段应触发一次单独重试');
+});

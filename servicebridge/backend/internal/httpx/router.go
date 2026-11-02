@@ -1309,13 +1309,8 @@ func NewRouter(cfg config.Config, logger *slog.Logger, service *app.Service) htt
 		if !decodeOptionalJSON(w, r, &req) {
 			return
 		}
-		if strings.TrimSpace(service.Store().AISettings().APIKey) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"error":   "ai_api_key_missing",
-				"message": "AI API Key 未配置，无法进行真实接口联调",
-			})
-			return
-		}
+		// 上游统一由「模型配置」的供应商/能力绑定解析；不再强制要求全局 ai_settings.api_key，
+		// 否则只配置了供应商绑定、没有旧全局 Key 的部署无法测试。
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		reply, err := service.TestAIReply(ctx, req.Input)
@@ -2231,7 +2226,7 @@ func NewRouter(cfg config.Config, logger *slog.Logger, service *app.Service) htt
 	registerServicePolicyRoutes(mux, service, trustedProxies)
 
 	// ===== P5：访客画像（配置 / 列表 / 详情 / 重算 / 客服会话侧画像卡）=====
-	registerVisitorProfileRoutes(mux, service, trustedProxies)
+	registerVisitorProfileRoutes(mux, service, trustedProxies, cfg.GeoIPUploadDir)
 
 	// ===== 服务间接口（X-Internal-Token 鉴权；未配置令牌时 503）=====
 	registerInternalRoutes(mux, service, cfg)

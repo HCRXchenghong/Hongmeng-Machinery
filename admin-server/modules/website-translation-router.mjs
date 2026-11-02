@@ -19,6 +19,7 @@ export function createWebsiteTranslationRouter({
   verifySession,
   auditEvent,
   translationService,
+  storefrontTranslationService = null,
   readContentRecord,
   applyPublicCors = () => true
 }) {
@@ -52,16 +53,18 @@ export function createWebsiteTranslationRouter({
     }
 
     if (pathname === '/site-admin-api/translations' && req.method === 'GET') {
-      const [source, settings, translations] = await Promise.all([
+        const [source, settings, translations, storefront] = await Promise.all([
         readContentRecord(),
         translationService.publicSettings(),
-        translationService.list()
+        translationService.list(),
+          storefrontTranslationService?.statusAll() || Promise.resolve(null)
       ]);
       const byLocale = new Map(translations.map((item) => [item.locale, item]));
       json(res, 200, {
         data: {
           source: { locale: 'zh-CN', revision: source.revision, status: 'ready', updatedAt: source.updatedAt },
           settings,
+          storefront: storefront || undefined,
           translations: ['en', 'ar'].map((locale) => {
             const item = byLocale.get(locale) || { locale, sourceRevision: 0, status: 'pending', lastError: '', updatedAt: null };
             return { ...item, content: undefined, stale: item.sourceRevision !== source.revision || item.status !== 'ready' };
@@ -77,6 +80,7 @@ export function createWebsiteTranslationRouter({
         if (settings.enabled && settings.apiKeyConfigured && settings.model) {
           const source = await readContentRecord();
           await translationService.schedule(source.content, source.revision, ['en', 'ar']);
+          if (storefrontTranslationService) await storefrontTranslationService.scheduleIfStale();
         }
         await auditEvent(req, 'translation.settings.updated', 'website-translation', '', {
           apiType: settings.apiType,
@@ -109,6 +113,7 @@ export function createWebsiteTranslationRouter({
         if (locales.some((locale) => !LOCALES.has(locale))) throw new Error('只能重译英语或阿拉伯语。');
         const source = await readContentRecord();
         await translationService.schedule(source.content, source.revision, locales);
+        if (storefrontTranslationService && locales.includes('en')) await storefrontTranslationService.scheduleIfStale();
         await auditEvent(req, 'translation.requested', 'website-translation', locales.join(','), { sourceRevision: source.revision });
         json(res, 202, { data: { accepted: true, locales, sourceRevision: source.revision } });
       } catch (error) {

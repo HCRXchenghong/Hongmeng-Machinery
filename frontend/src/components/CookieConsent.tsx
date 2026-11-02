@@ -1,89 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { readCookieConsent, writeCookieConsent } from '../lib/consent';
+import { X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { localizeReact, type Locale } from '../i18n';
+import { gpcOptOut } from '../lib/analytics';
+import { readConsent, writeConsent } from '../lib/consent';
 
-type CookieCopy = {
-  title: string;
-  text: string;
-  privacyLabel: string;
-  suffixText: string;
-  acceptAllLabel: string;
-  necessaryLabel: string;
-};
-
-/** Marker attribute used by the footer "cookie settings" entry. */
-const COOKIE_SETTINGS_TRIGGER = '[data-cookie-settings]';
-
-export default function CookieConsent({
-  cookie,
-  privacyHref = '/privacy/'
-}: {
-  cookie: CookieCopy;
-  privacyHref?: string;
-}) {
+export default function CookieConsent({ locale = 'en' }: { locale?: Locale }) {
   const [visible, setVisible] = useState(false);
-
+  const [preferences, setPreferences] = useState(false);
+  const [analytics, setAnalytics] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [gpc, setGpc] = useState(false);
+  function restoreSavedPreferences() {
+    const saved = readConsent();
+    setAnalytics(saved?.analytics === true);
+    setMarketing(saved?.marketing === true);
+  }
   useEffect(() => {
-    setVisible(readCookieConsent() === null);
-
-    // The footer entry is server-rendered by the Astro layout, so the banner
-    // listens for it instead of relying on shared component state.
-    const reopen = () => setVisible(true);
-    const onClick = (event: MouseEvent) => {
-      const target = event.target as Element | null;
-      if (target?.closest?.(COOKIE_SETTINGS_TRIGGER)) {
-        event.preventDefault();
-        reopen();
-      }
-    };
-
-    document.addEventListener('click', onClick);
-    window.addEventListener('astreva:cookie-settings', reopen);
-    return () => {
-      document.removeEventListener('click', onClick);
-      window.removeEventListener('astreva:cookie-settings', reopen);
-    };
+    setVisible(!readConsent());
+    restoreSavedPreferences();
+    setGpc(gpcOptOut());
+    const open = () => { restoreSavedPreferences(); setPreferences(true); setVisible(true); };
+    window.addEventListener('hongmeng:open-cookie-settings', open);
+    return () => window.removeEventListener('hongmeng:open-cookie-settings', open);
   }, []);
-
-  if (!visible) return null;
-
-  const choose = (analytics: boolean) => {
-    writeCookieConsent({ necessary: true, analytics });
+  useEffect(() => {
+    document.body.classList.toggle('hm-cookie-open', visible);
+    return () => { document.body.classList.remove('hm-cookie-open'); };
+  }, [visible]);
+  function save(next: { analytics: boolean; marketing: boolean }) {
+    writeConsent(next);
     setVisible(false);
-  };
-
-  return (
-    <div
-      id="cookie-consent"
-      role="dialog"
-      aria-label={cookie.title}
-      className="fixed bottom-0 left-0 w-full z-[120] bg-white border-t border-gray-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)]"
-    >
-      <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="text-gray-600 text-sm leading-relaxed flex-1">
-          <strong className="text-gray-900 font-bold mr-2 text-base">{cookie.title}</strong>
-          {cookie.text}
-          <a href={privacyHref} className="text-brand-500 hover:text-brand-700 hover:underline mx-1 font-semibold">
-            {cookie.privacyLabel}
-          </a>
-          {cookie.suffixText}
-        </div>
-        <div className="flex shrink-0 gap-3 w-full md:w-auto">
-          <button
-            type="button"
-            onClick={() => choose(true)}
-            className="flex-1 md:flex-none bg-brand-500 text-white px-8 py-2.5 rounded-sm text-sm font-bold hover:bg-brand-700 transition-colors"
-          >
-            {cookie.acceptAllLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => choose(false)}
-            className="flex-1 md:flex-none bg-gray-100 border border-gray-200 text-gray-700 px-6 py-2.5 rounded-sm text-sm font-bold hover:bg-gray-200 transition-colors"
-          >
-            {cookie.necessaryLabel}
-          </button>
-        </div>
-      </div>
+    window.dispatchEvent(new CustomEvent('hongmeng:consent-updated', { detail: next }));
+  }
+  if (!visible) return null;
+  return localizeReact(<div className="hm-cookie-backdrop" role="presentation"><section className="hm-cookie-dialog" role="dialog" aria-labelledby="hm-cookie-title" aria-describedby="hm-cookie-description">
+    <button type="button" className="hm-cookie-close" aria-label="Close cookie settings" onClick={() => save({ analytics: false, marketing: false })}><X size={18} aria-hidden="true" /></button>
+    <div className="hm-cookie-copy">
+      <span className="hm-eyebrow">YOUR PRIVACY CHOICES</span>
+      <h2 id="hm-cookie-title">Cookie settings</h2>
+      <p id="hm-cookie-description">Necessary storage keeps your cart, sign-in, and site security working. Analytics storage is optional and only controls whether we remember this browser: visits are always counted anonymously, with no identifier written. Allow it and repeat visits and chats stay tied to one visitor. You can change this at any time.</p>
+      {gpc && <p className="hm-cookie-gpc">Your browser sends a Global Privacy Control signal, so anonymous counting is paused until you allow analytics.</p>}
+      <p className="hm-cookie-links"><a href="/privacy/">Privacy policy</a><a href="/cookies/">Cookie policy</a><a href="/privacy/#privacy-choices">Privacy choices</a></p>
     </div>
-  );
+    {preferences && <div className="hm-cookie-options"><label><input type="checkbox" checked disabled /><span><strong>Essential functions</strong><small>Required for your cart, account, and site security.</small></span><em>Always on</em></label><label><input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} /><span><strong>Analytics cookies</strong><small>Lets us recognise this browser for repeat visits and chat history. Anonymous counting runs either way.</small></span></label><label><input type="checkbox" checked={false} disabled /><span><strong>Advertising cookies</strong><small>Reserved for advertising tags; none is installed yet.</small></span><em>Not in use</em></label></div>}
+    <div className="hm-cookie-actions"><button type="button" className="hm-cookie-secondary" onClick={() => save({ analytics: false, marketing: false })}>Reject optional</button><button type="button" className="hm-cookie-secondary" onClick={() => preferences ? save({ analytics, marketing }) : setPreferences(true)}>{preferences ? 'Save choices' : 'Customize'}</button><button type="button" className="hm-button hm-button-blue" onClick={() => save({ analytics: true, marketing: true })}>Allow all</button></div>
+  </section></div>, locale);
 }

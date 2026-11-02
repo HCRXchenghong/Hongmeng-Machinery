@@ -1,4 +1,4 @@
-# ASTREVA edge: Caddy 直接监听 80/443，自动申请并续期证书。
+# 宏盟机械站点入口：Caddy 直接监听 80/443，自动申请并续期证书。
 # 域名与证书邮箱全部来自容器环境变量（SITE_DOMAIN / ADMIN_DOMAIN / SERVICE_DOMAIN / ACME_EMAIL），
 # 由 deployments/ubuntu/.env.ubuntu 提供，避免仓库里写死域名或重复生成配置导致漂移。
 {
@@ -18,6 +18,12 @@
 
 	# 咨询单由官网域名直连后台，避免跨域与预检。
 	handle /site-admin-api/leads {
+		reverse_proxy admin-server:1337
+	}
+
+	# 商品记录保存在数据库，由后台公开端点按当前已上架商品生成多语言站点地图。
+	handle /sitemap-products.xml {
+		rewrite * /site-admin-api/shop/sitemap-products.xml
 		reverse_proxy admin-server:1337
 	}
 

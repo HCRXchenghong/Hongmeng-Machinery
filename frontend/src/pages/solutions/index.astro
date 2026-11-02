@@ -1,8 +1,4 @@
 ---
-import SolutionsView from '../../views/SolutionsView.astro';
-import { getContent } from '../../lib/content';
-
-const content = await getContent('zh-CN');
+import StoreLayout from '../../layouts/StoreLayout.astro';
 ---
-
-<SolutionsView content={content} locale="zh-CN" />
+<StoreLayout mode="solutions" title="Applications" description="Review attachment options based on equipment and site requirements." />

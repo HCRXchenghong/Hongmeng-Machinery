@@ -458,6 +458,71 @@ export const purgeSystemEvents = (payload: Record<string, unknown> = {}) =>
     .post('/site-admin-api/system/events/purge', payload)
     .then((r) => r.data);
 
+// ---------- 系统：SMTP 邮件发送（验证码 / 测试邮件） ----------
+// 契约：GET/PATCH /system/mail-settings -> {data:{...}}，密码只加密保存在服务端，
+// 回显仅有 password_masked；PATCH 为局部更新，password 不传=不改、传 ""=清除（配合 clear_password）。
+export type MailSettings = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  from_email: string;
+  from_name: string;
+  password_masked: string;
+  configured: boolean;
+  updated_at: string;
+};
+
+export type MailSettingsPayload = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  from_email: string;
+  from_name: string;
+  password?: string;
+  clear_password?: boolean;
+};
+
+// GET /site-admin-api/system/mail-log?limit=10
+//   -> {data:[{id,created_at,to,purpose,status,detail}]}，status 为 sent / failed。
+export type MailLogEntry = {
+  id: string;
+  created_at: string;
+  to: string;
+  purpose: string;
+  status: 'sent' | 'failed';
+  detail: string;
+};
+
+export const fetchMailSettings = () =>
+  client
+    .get<{ data: MailSettings }>('/site-admin-api/system/mail-settings')
+    .then((r) => r.data?.data);
+
+export const saveMailSettings = (payload: MailSettingsPayload) =>
+  client
+    .patch<{ data: MailSettings }>(
+      '/site-admin-api/system/mail-settings',
+      payload
+    )
+    .then((r) => r.data?.data);
+
+export const sendTestMail = (payload: { to: string }) =>
+  client
+    .post<{ data: { message: string } }>(
+      '/site-admin-api/system/mail-settings/test',
+      payload
+    )
+    .then((r) => r.data?.data);
+
+export const fetchMailLog = (limit = 10) =>
+  client
+    .get<{ data: MailLogEntry[] }>('/site-admin-api/system/mail-log', {
+      params: { limit },
+    })
+    .then((r) => r.data?.data || []);
+
 // ---------- 访客画像（P5） ----------
 // 契约冻结：GET/PATCH /api/admin/visitor-profile/settings -> {settings:{...}}（注意画像设置是**单数**；
 // 列表与详情才是复数 /api/admin/visitor-profiles）。
@@ -474,6 +539,16 @@ export const updateVisitorProfileSettings = (
     .patch(bridge('/api/admin/visitor-profile/settings'), payload)
     .then((r) => r.data);
 
+// POST /api/admin/visitor-profile/geoip-upload
+// 上传 GeoLite2-City.mmdb，服务端校验后原子保存并自动回填 geoip_db_path。
+export const uploadVisitorGeoIP = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return client
+    .post(bridge('/api/admin/visitor-profile/geoip-upload'), form, { timeout: 180000 })
+    .then((r) => r.data);
+};
+
 // GET /api/admin/visitor-profiles?q=&country=&tag=&limit=&offset=
 //   -> {profiles:[{visitor_id,country,region,city,timezone,nationality_guess,
 //        nationality_confidence,nationality_basis,dialect,summary,tags,
@@ -486,6 +561,15 @@ export const fetchVisitorProfiles = (params: Record<string, unknown> = {}) =>
 // GET /api/admin/visitor-profiles/{visitor_id}
 //   -> {profile:{...,evidence:[{message_id,text,created_at}],
 //        conversations:[{conversation_id,status,created_at,last_message_at}]}}
+// GET /site-admin-api/analytics/visitor?visitor_id=...
+// 画像接口本身不含 UA/设备字段；这里读取同一访客的访问明细做只读补充。
+export const fetchVisitorVisits = (visitorId: string) =>
+  client
+    .get<{ data: Array<Record<string, any>> }>('/site-admin-api/analytics/visitor', {
+      params: { visitor_id: visitorId }
+    })
+    .then((r) => r.data?.data || []);
+
 export const fetchVisitorProfile = (visitorId: string) =>
   client
     .get(bridge(`/api/admin/visitor-profiles/${encodeURIComponent(visitorId)}`))

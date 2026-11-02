@@ -7,12 +7,8 @@
 
     <a-card :bordered="false" class="edit-card">
       <template #title>编辑媒体与存储设置</template>
-      <a-alert type="info" class="settings-tip">
-        AI 生图的配置与生成已归入「AI 管理 → AI 生图」。
-        <a-link href="/site-admin/ai/image">前往 AI 生图</a-link>
-      </a-alert>
       <a-tabs default-active-key="storage">
-        <a-tab-pane key="storage" title="R2 / S3 存储">
+        <a-tab-pane key="storage" title="对象存储">
           <a-form :model="storageForm" layout="vertical">
             <a-grid :cols="{ xs: 1, md: 2 }" :col-gap="12">
               <a-grid-item>

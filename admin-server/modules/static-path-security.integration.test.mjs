@@ -57,7 +57,7 @@ test('静态资源路由拒绝目录穿越，且不影响正常资源', async ()
     await waitFor(port);
 
     // 正常静态资源必须仍然可访问。
-    const logo = await request(port, '/assets/astreva-logo.png');
+    const logo = await request(port, '/assets/hongmeng-logo.svg');
     assert.equal(logo.status, 200);
     const adminAsset = await request(port, '/site-admin-assets/api-docs.js');
     assert.equal(adminAsset.status, 200);
@@ -74,7 +74,7 @@ test('静态资源路由拒绝目录穿越，且不影响正常资源', async ()
     const results = await Promise.all(traversals.map((rawPath) => request(port, rawPath)));
     for (const [index, result] of results.entries()) {
       assert.equal(result.status, 403, `${traversals[index]} 应返回 403，实际 ${result.status}`);
-      assert.ok(!result.body.includes('"name": "astreva-independent-site"'), `${traversals[index]} 泄露了 package.json`);
+      assert.ok(!result.body.includes('"name": "hongmeng-machinery-platform"'), `${traversals[index]} 泄露了 package.json`);
     }
 
     // 非法百分号编码不应导致 500，而是 400。

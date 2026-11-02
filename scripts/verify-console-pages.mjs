@@ -12,7 +12,7 @@
  *
  * 用法：
  *   ASTREVA_ADMIN_COOKIE_FILE=/tmp/astreva-admin-session.txt \
- *     node scripts/verify-console-pages.mjs [--base http://127.0.0.1:1337] [--headed]
+ *     node scripts/verify-console-pages.mjs [--base http://127.0.0.1:1338] [--headed]
  *
  * 会话从哪来：本地可用一个真实会话（例如由运维写入的 600 权限文件）。脚本不会伪造签名、
  * 不会创建管理员账号，也不会改动任何数据——它只做只读访问（GET 页面与接口）。
@@ -21,15 +21,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const argValue = (name, fallback) => {
   const index = args.indexOf(name);
   return index >= 0 && args[index + 1] ? args[index + 1] : fallback;
 };
-const BASE = argValue('--base', process.env.ASTREVA_ADMIN_BASE || 'http://127.0.0.1:1337').replace(/\/+$/, '');
+const BASE = argValue('--base', process.env.HONGMENG_ADMIN_BASE || 'http://127.0.0.1:1338').replace(/\/+$/, '');
 const HEADED = args.includes('--headed');
 const COOKIE_FILE = process.env.ASTREVA_ADMIN_COOKIE_FILE || '/tmp/astreva-admin-session.txt';
 const CHROME = process.env.ASTREVA_CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';

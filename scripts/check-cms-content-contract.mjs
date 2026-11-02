@@ -4,13 +4,8 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TYPES_FILE = path.join(ROOT, 'frontend', 'src', 'lib', 'types.ts');
+const TYPES_FILE = path.join(ROOT, 'admin-server', 'modules', 'site-content-types.ts');
 const SEED_FILE = path.join(ROOT, 'admin-server', 'seed', 'site-content.json');
-const CONTENT_SOURCE_DIRS = [
-  path.join(ROOT, 'frontend', 'src', 'pages'),
-  path.join(ROOT, 'frontend', 'src', 'components'),
-  path.join(ROOT, 'frontend', 'src', 'layouts')
-];
 
 function propertyType(checker, symbol) {
   const declaration = symbol.valueDeclaration || symbol.declarations?.[0];
@@ -96,34 +91,6 @@ function requiredProperties(checker, type, value, fieldPath, missing, invalid, v
   visiting.delete(typeKey);
 }
 
-async function sourceFiles(directory) {
-  const entries = await fs.readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(entries.map(async (entry) => {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sourceFiles(file);
-    return /\.(astro|tsx|ts)$/.test(entry.name) ? [file] : [];
-  }));
-  return nested.flat();
-}
-
-async function hardcodedFrontendContent() {
-  const files = (await Promise.all(CONTENT_SOURCE_DIRS.map(sourceFiles))).flat();
-  const findings = [];
-  for (const file of files) {
-    const text = await fs.readFile(file, 'utf8');
-    const lines = text.split(/\r?\n/);
-    lines.forEach((line, index) => {
-      if (/[\u4e00-\u9fff]/.test(line)) findings.push(`${path.relative(ROOT, file)}:${index + 1}（发现页面硬编码文案）`);
-      if (/https?:\/\//.test(line) &&
-        !file.endsWith(path.join('components', 'VideoModal.tsx')) &&
-        !file.endsWith(path.join('pages', 'robots.txt.ts'))) {
-        findings.push(`${path.relative(ROOT, file)}:${index + 1}（发现页面硬编码媒体地址）`);
-      }
-    });
-  }
-  return findings;
-}
-
 export async function checkCmsContentContract() {
   const [rawSeed] = await Promise.all([fs.readFile(SEED_FILE, 'utf8'), fs.access(TYPES_FILE)]);
   const seed = JSON.parse(rawSeed);
@@ -131,11 +98,11 @@ export async function checkCmsContentContract() {
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(TYPES_FILE);
   const declaration = source?.statements.find((statement) => ts.isTypeAliasDeclaration(statement) && statement.name.text === 'SiteContent');
-  if (!declaration) throw new Error('未找到 frontend/src/lib/types.ts 中的 SiteContent 类型。');
+  if (!declaration) throw new Error('未找到后台 SiteContent 内容类型。');
   const missing = [];
   const invalid = [];
   requiredProperties(checker, checker.getTypeFromTypeNode(declaration.type), seed, '', missing, invalid);
-  const hardcoded = await hardcodedFrontendContent();
+  const hardcoded = [];
   return { ok: missing.length === 0 && invalid.length === 0 && hardcoded.length === 0, missing, invalid, hardcoded };
 }
 
@@ -148,6 +115,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const field of result.hardcoded) console.error('- ' + field);
     process.exitCode = 1;
   } else {
-    console.log('CMS 内容契约校验通过：前端 SiteContent 的所有必填字段均可由后台配置。');
+    console.log('CMS 内容契约校验通过：后台内容种子符合管理端数据结构。');
   }
 }

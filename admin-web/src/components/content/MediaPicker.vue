@@ -77,7 +77,7 @@
             :key="item.id"
             type="button"
             class="media-card"
-            :class="{ active: item.url === modelValue }"
+            :class="{ active: multiple ? selectedIds.includes(item.id) : item.url === modelValue }"
             @click="pick(item)"
           >
             <div class="media-card-body">
@@ -89,6 +89,10 @@
           </button>
         </div>
       </a-spin>
+      <div v-if="multiple" class="media-modal-actions">
+        <span>已选择 {{ selectedIds.length }} 项</span>
+        <a-space><a-button @click="modalVisible = false">取消</a-button><a-button type="primary" :disabled="!selectedIds.length" @click="confirmSelection">添加所选素材</a-button></a-space>
+      </div>
     </a-modal>
   </div>
 
@@ -140,6 +144,7 @@
   const loading = ref(false);
   const uploading = ref(false);
   const mediaItems = ref<MediaItem[]>([]);
+  const selectedIds = ref<string[]>([]);
   const keyword = ref('');
   const typeFilter = ref('');
 
@@ -156,6 +161,7 @@
   }
 
   function openModal() {
+    selectedIds.value = [];
     typeFilter.value = ['image', 'video', 'file'].includes(String(props.mediaType))
       ? String(props.mediaType)
       : '';
@@ -180,7 +186,19 @@
   }
 
   function pick(item: MediaItem) {
+    if (props.multiple) {
+      selectedIds.value = selectedIds.value.includes(item.id)
+        ? selectedIds.value.filter((id) => id !== item.id)
+        : [...selectedIds.value, item.id];
+      return;
+    }
     emitValue(item.url);
+    modalVisible.value = false;
+  }
+
+  function confirmSelection() {
+    const selected = mediaItems.value.filter((item) => selectedIds.value.includes(item.id)).map((item) => item.url);
+    if (selected.length) emit('uploaded', selected);
     modalVisible.value = false;
   }
 
@@ -229,6 +247,7 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+  .media-modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--color-border-2); color: var(--color-text-3); font-size: 12px; }
   .media-preview img,
   .media-preview video {
     max-width: 240px;

@@ -858,7 +858,9 @@
 
         // === 工具函数 ===
         function inferAPIBase() {
-            const configured = document.querySelector('meta[name="customer-service-api-base"]')?.content || window.CUSTOMER_SERVICE_API_BASE || '';
+            // 官网以 iframe 查询参数显式传入引擎地址；避免不同端口/反代部署时猜错 8080。
+            const fromQuery = new URLSearchParams(window.location.search).get('api_base') || '';
+            const configured = fromQuery || document.querySelector('meta[name="customer-service-api-base"]')?.content || window.CUSTOMER_SERVICE_API_BASE || '';
             if (configured.trim()) return configured.trim().replace(/\/$/, '');
             if (location.protocol === 'file:') return 'http://127.0.0.1:8080';
             if (location.port && location.port !== '8080') return `${location.protocol}//${location.hostname}:8080`;
@@ -922,8 +924,11 @@
         // 校验规则与后端 cleanProfileVisitorID 保持一致：<=64 个 [A-Za-z0-9_.-] 字符。
         function readVisitorRef(storage) {
             try {
+                // 官网页面与客服挂件可能不同源：优先使用父页面通过 iframe 查询串传来的 visitor_ref，
+                // 同源嵌入时再回退到 localStorage。
+                const fromQuery = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('visitor_ref') || '') : '';
                 const store = storage || window.localStorage;
-                const raw = store.getItem(VISITOR_REF_KEY);
+                const raw = fromQuery || store.getItem(VISITOR_REF_KEY) || '';
                 if (typeof raw !== 'string') return '';
                 const value = raw.trim();
                 if (!value || value.length > 64 || !/^[A-Za-z0-9_.-]+$/.test(value)) return '';
@@ -1472,9 +1477,18 @@
         }
 
         async function bootApp() {
-            let savedSession = loadVisitorSession();
+            // 官网把同意撤回后会在 iframe 地址上带 forget=1：先清掉挂件自己这份存储，
+            // 避免跨源 iframe 里的旧会话令牌绕过撤回继续使用。
+            const forget = new URLSearchParams(window.location.search).get('forget') === '1';
+            if (forget) {
+                try {
+                    window.localStorage.removeItem(STORAGE_KEYS.visitorSession);
+                    window.localStorage.removeItem(VISITOR_REF_KEY);
+                } catch (err) {}
+            }
+            let savedSession = forget ? null : loadVisitorSession();
             // iframe 自身存储被拦截/清空时，向主站第一方存储取回会话令牌。
-            if (!savedSession && isEmbedMode()) {
+            if (!savedSession && !forget && isEmbedMode()) {
                 savedSession = await requestHostSession();
             }
             if (savedSession) {

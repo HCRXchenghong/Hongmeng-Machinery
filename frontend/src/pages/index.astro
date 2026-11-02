@@ -1,8 +1,4 @@
 ---
-import HomeView from '../views/HomeView.astro';
-import { getContent } from '../lib/content';
-
-const content = await getContent('zh-CN');
+import StoreLayout from '../layouts/StoreLayout.astro';
 ---
-
-<HomeView content={content} locale="zh-CN" />
+<StoreLayout mode="home" title="Equipment Attachments and Parts" description="Shop forestry mulcher attachments and replacement parts from Hongmeng Machinery." />

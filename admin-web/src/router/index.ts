@@ -10,8 +10,7 @@ import { DEFAULT_ROUTE } from './constants';
 
 NProgress.configure({ showSpinner: false }); // NProgress Configuration
 
-// 后台 SPA 挂在 /site-admin/ 下；旧的独立页面（content/translations/media/settings/api-docs）
-// 仍由 admin-server 直接提供，不受这里影响。
+// 后台 SPA 挂在 /site-admin/ 下；旧站独立页面已下线，旧地址统一由 legacy.ts 重定向。
 const router = createRouter({
   history: createWebHistory('/site-admin/'),
   routes: [

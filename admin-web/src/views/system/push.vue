@@ -61,7 +61,7 @@
             </a-col>
           </a-row>
           <a-form-item label="APNs Topic（Bundle ID）">
-            <a-input v-model="form.apns_topic" placeholder="com.astreva.online_customer_service" />
+            <a-input v-model="form.apns_topic" placeholder="com.hongmeng.machinery.customer-service" />
           </a-form-item>
           <a-space>
             <a-button type="primary" :loading="saving" @click="save">保存推送设置</a-button>

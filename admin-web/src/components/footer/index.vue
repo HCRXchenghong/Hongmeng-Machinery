@@ -1,6 +1,6 @@
 <template>
   <a-layout-footer class="footer">
-    © {{ year }} ASTREVA · 统一控制台
+    © {{ year }} 宏盟机械 · 统一控制台
   </a-layout-footer>
 </template>
 

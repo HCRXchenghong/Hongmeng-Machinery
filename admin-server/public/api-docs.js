@@ -115,7 +115,7 @@ setInterval(() =&gt; ws.readyState === 1 &amp;&amp; ws.send('{"event":"ping"}'),
 
 function buildDocsText(docs) {
   return [
-    'ASTREVA 客服引擎 · 第三方平台 API 接入文档',
+    '宏盟机械客服引擎 · 第三方平台 API 接入文档',
     '',
     `服务地址：${docs.root}`,
     '鉴权：请求头 Authorization: Bearer 你的API_KEY（或 X-API-Key；WebSocket 可用 query 参数 key）',

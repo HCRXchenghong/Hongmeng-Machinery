@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 const LEAD_BODY_LIMIT = 64 * 1024;
 const RATE_WINDOW_MS = Number(process.env.ADMIN_LEAD_RATE_WINDOW_MS || 10 * 60 * 1000);
 const RATE_MAX = Number(process.env.ADMIN_LEAD_RATE_MAX || 5);
+// 判重发生在限流之前，得另设一道硬顶，免得洪水般的新内容把 readLeads() 打穿。
+const HARD_RATE_MAX = Number(process.env.ADMIN_LEAD_HARD_RATE_MAX || Math.max(30, RATE_MAX * 6));
 const DUPLICATE_WINDOW_MS = Number(process.env.ADMIN_LEAD_DUPLICATE_WINDOW_MS || 5 * 60 * 1000);
 const ALLOWED_STATUSES = new Set(['新咨询', '处理中', '已联系', '已关闭']);
 const ALLOWED_PRIORITIES = new Set(['低', '普通', '高', '紧急']);
@@ -63,17 +65,22 @@ function normalizeLeadInput(data = {}) {
 export function createLeadsModule({ readLeads, saveLeads, bodyJson, json, verifySession, auditEvent, requestIp = () => '' }) {
   const rateWindows = new Map();
 
-  function checkRateLimit(req) {
+  /** consume=false 只看不算，供闸门前的探测用；真正落一条新咨询时 consume=true 计一次。 */
+  function checkRateLimit(req, { consume = true } = {}) {
     const now = Date.now();
     const key = requestIp(req) || 'unknown';
     const current = rateWindows.get(key);
     const bucket = !current || current.resetAt <= now ? { count: 0, resetAt: now + RATE_WINDOW_MS } : current;
-    bucket.count += 1;
+    if (consume) bucket.count += 1;
     rateWindows.set(key, bucket);
     if (rateWindows.size > 5000) {
       for (const [entryKey, value] of rateWindows) if (value.resetAt <= now) rateWindows.delete(entryKey);
     }
-    return { allowed: bucket.count <= RATE_MAX, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+    return {
+      allowed: bucket.count <= RATE_MAX,
+      hard: bucket.count <= HARD_RATE_MAX,
+      retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+    };
   }
 
   async function saveLead(data = {}) {
@@ -99,9 +106,9 @@ export function createLeadsModule({ readLeads, saveLeads, bodyJson, json, verify
 
   async function handle(req, res, pathname) {
     if (pathname === '/site-admin-api/leads' && req.method === 'POST') {
-      const rate = checkRateLimit(req);
-      if (!rate.allowed) {
-        res.setHeader('Retry-After', String(rate.retryAfter));
+      const hardRate = checkRateLimit(req, { consume: false });
+      if (!hardRate.hard) {
+        res.setHeader('Retry-After', String(hardRate.retryAfter));
         json(res, 429, { error: { message: '提交过于频繁，请稍后再试。' } });
         return true;
       }
@@ -120,8 +127,17 @@ export function createLeadsModule({ readLeads, saveLeads, bodyJson, json, verify
           const createdAt = new Date(item.submittedAt || 0).getTime();
           return Date.now() - createdAt <= DUPLICATE_WINDOW_MS && leadFingerprint(item) === fingerprint;
         });
+        // 先判重再限流：同一份内容重复提交返回原单（包括浏览器重试、用户连点），
+        // 只有真正的新咨询才吃额度，否则一个共用出口 IP 的办公网 5 条就全被 429 了。
         if (duplicate) {
           json(res, 200, { data: duplicate, meta: { duplicate: true } });
+          return true;
+        }
+        // 只有真正新增的内容才占名额；重复提交不消耗额度。
+        const rate = checkRateLimit(req);
+        if (!rate.allowed) {
+          res.setHeader('Retry-After', String(rate.retryAfter));
+          json(res, 429, { error: { message: '提交过于频繁，请稍后再试。' } });
           return true;
         }
         const now = new Date().toISOString();
@@ -139,7 +155,7 @@ export function createLeadsModule({ readLeads, saveLeads, bodyJson, json, verify
         await auditEvent(req, 'lead.created', 'lead', lead.id, { sourcePage: lead.sourcePage });
         json(res, 201, { data: lead });
       } catch (error) {
-        json(res, 400, { error: { message: error.message || '提交咨询单失败。' } });
+        json(res, Number(error.status) || 400, { error: { message: error.message || '提交咨询单失败。' } });
       }
       return true;
     }

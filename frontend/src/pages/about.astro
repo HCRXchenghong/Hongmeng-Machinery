@@ -1,8 +1,4 @@
 ---
-import AboutView from '../views/AboutView.astro';
-import { getContent } from '../lib/content';
-
-const content = await getContent('zh-CN');
+import StoreLayout from '../layouts/StoreLayout.astro';
 ---
-
-<AboutView content={content} locale="zh-CN" />
+<StoreLayout mode="about" title="About Hongmeng Machinery" description="Learn about Hongmeng Machinery equipment attachments, replacement parts, and support." />

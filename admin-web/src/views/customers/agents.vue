@@ -1,12 +1,12 @@
 <template>
   <a-card :bordered="false">
-    <template #title>客服账号</template>
+    <template #title>客服成员</template>
     <template #extra>
-      <a-button type="primary" @click="openEditor()">新增客服账号</a-button>
+      <a-button type="primary" @click="openEditor()">新增客服成员</a-button>
     </template>
     <a-table :data="agents" :loading="loading" :pagination="false" row-key="id">
       <template #columns>
-        <a-table-column title="账号 / 姓名">
+        <a-table-column title="成员 / 姓名">
           <template #cell="{ record }">
             <div><strong>{{ record.name }}</strong></div>
             <a-typography-text type="secondary">{{ record.account }}</a-typography-text>
@@ -46,7 +46,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:visible="editorVisible" :title="form.id ? '编辑客服' : '新增客服账号'" @ok="saveAgent">
+    <a-modal v-model:visible="editorVisible" :title="form.id ? '编辑客服' : '新增客服成员'" @ok="saveAgent">
       <a-form :model="form" layout="vertical">
         <a-form-item label="登录账号" required>
           <a-input v-model="form.account" :disabled="Boolean(form.id)" />

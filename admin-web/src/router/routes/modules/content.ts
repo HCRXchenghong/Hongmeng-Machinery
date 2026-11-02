@@ -1,39 +1,43 @@
 import { DEFAULT_LAYOUT } from '../base';
 
 export default {
-  path: '/content',
-  name: 'ContentRoot',
+  path: '/site',
+  name: 'SiteRoot',
   component: DEFAULT_LAYOUT,
-  redirect: '/content/site',
+  redirect: '/site/pages',
   meta: {
-    title: '内容管理',
-        locale: '内容管理',
+    title: '官网',
+    locale: '官网',
     requiresAuth: true,
     icon: 'IconFile',
-    order: 3,
-    hideInMenu: false,
+    order: 30,
+    hideInMenu: false
   },
   children: [
     {
-      path: 'site',
-      name: 'SiteContent',
-      component: () => import('@/views/content/content-editor.vue'),
-      meta: { title: '官网内容',
-        locale: '官网内容', requiresAuth: true },
+      path: 'pages',
+      name: 'SitePages',
+      component: () => import('@/views/commerce/manage.vue'),
+      props: { section: 'content' },
+      meta: { title: '页面内容', locale: '页面内容', requiresAuth: true }
     },
     {
-      path: 'translations',
-      name: 'Translations',
+      path: 'seo',
+      name: 'SiteSeo',
+      component: () => import('@/views/content/seo.vue'),
+      meta: { title: 'SEO 设置', locale: 'SEO 设置', requiresAuth: true }
+    },
+    {
+      path: 'languages',
+      name: 'SiteLanguages',
       component: () => import('@/views/content/translations.vue'),
-      meta: { title: '网站翻译',
-        locale: '网站翻译', requiresAuth: true },
+      meta: { title: '多语言内容', locale: '多语言内容', requiresAuth: true }
     },
     {
       path: 'media',
-      name: 'Media',
+      name: 'SiteMedia',
       component: () => import('@/views/content/media.vue'),
-      meta: { title: 'R2 素材库',
-        locale: 'R2 素材库', requiresAuth: true },
-    },
-  ],
+      meta: { title: '媒体素材', locale: '媒体素材', requiresAuth: true }
+    }
+  ]
 };

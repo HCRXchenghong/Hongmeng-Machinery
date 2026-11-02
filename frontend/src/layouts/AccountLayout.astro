@@ -1,0 +1,20 @@
+---
+import '../styles/global.css';
+import '../styles/storefront.css';
+import CustomerPortal from '../views/CustomerPortal';
+import AccountHeader from '../components/AccountHeader.astro';
+import ChatWidget from '../components/ChatWidget';
+import CookieConsent from '../components/CookieConsent';
+import { htmlLang as localeHtmlLang, translate, type Locale } from '../i18n';
+const { title = 'My Account', locale = 'en' } = Astro.props as { title?: string; locale?: Locale };
+const description = translate(locale, 'Manage Hongmeng Machinery orders, shipping addresses, and account details.');
+const routePath = Astro.url.pathname.replace(/^\/(?:zh|ar)(?=\/|$)/, '') || '/';
+const siteUrl = Astro.site ?? new URL(Astro.url.origin);
+const localizedPath = (prefix: string) => `${prefix}${routePath === '/' ? '/' : routePath}`;
+const absoluteUrl = (path: string) => new URL(path, siteUrl).href;
+---
+<!doctype html>
+<html lang={localeHtmlLang(locale)} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="theme-color" content="#1169b1" /><link rel="icon" type="image/svg+xml" href="/assets/hongmeng-logo.svg" /><title>{title} | Hongmeng Machinery</title><meta name="description" content={description} /><meta name="robots" content="noindex,follow" /><link rel="canonical" href={absoluteUrl(localizedPath(locale === 'zh-CN' ? '/zh' : locale === 'ar' ? '/ar' : ''))} /><link rel="alternate" hreflang="en-US" href={absoluteUrl(routePath)} /><link rel="alternate" hreflang="zh-CN" href={absoluteUrl(localizedPath('/zh'))} /><link rel="alternate" hreflang="ar" href={absoluteUrl(localizedPath('/ar'))} /><link rel="alternate" hreflang="ar-SA" href={absoluteUrl(localizedPath('/ar'))} /><link rel="alternate" hreflang="ar-AE" href={absoluteUrl(localizedPath('/ar'))} /><link rel="alternate" hreflang="x-default" href={absoluteUrl(routePath)} /></head>
+  <body><AccountHeader locale={locale} /><CustomerPortal client:load locale={locale} pagePath={routePath} /><ChatWidget client:idle locale={locale} /><CookieConsent client:load locale={locale} /></body>
+</html>

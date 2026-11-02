@@ -1,7 +1,7 @@
 <template>
   <div class="policy-page" data-testid="policy-page">
+    <a-page-header :show-back="false" title="服务策略" subtitle="排队与分组、响应时限、接待优先级、名单与实时排队" />
     <a-alert class="tips" type="info">
-      <template #title>客服策略</template>
       这里的策略对全部客服与访客会话生效。每个卡片是一个独立弹窗，<strong>只保存该弹窗负责的字段</strong>，
       不会互相覆盖；保存后立即下发到客服引擎，无需重启。数字项 0 表示「不限制 / 不启用该判定」。
     </a-alert>
@@ -61,7 +61,7 @@
     <!-- ===== 策略弹窗：只提交各自负责的字段 ===== -->
     <a-modal
       v-model:visible="queueVisible"
-      title="排队与技能组"
+      title="排队与分组"
       :ok-loading="saving"
       :mask-closable="false"
       @ok="saveQueue"
@@ -88,7 +88,7 @@
             style="width: 200px"
           />
           <template #extra>
-            排队超过该秒数仍未接入客服时，超时转无人值守兜底回复。0 表示不限时。
+            排队超过该秒数仍未接入客服时，超时转离线接待回复。0 表示不限时。
           </template>
         </a-form-item>
       </a-form>
@@ -96,7 +96,7 @@
 
     <a-modal
       v-model:visible="slaVisible"
-      title="SLA 与超时"
+      title="响应时限"
       :ok-loading="saving"
       :mask-closable="false"
       @ok="saveSla"
@@ -147,7 +147,7 @@
 
     <a-modal
       v-model:visible="autoCloseVisible"
-      title="超时自动关闭"
+      title="会话自动结束"
       :ok-loading="saving"
       :mask-closable="false"
       @ok="saveAutoClose"
@@ -173,7 +173,7 @@
 
     <a-modal
       v-model:visible="priorityVisible"
-      title="AI 与关键词优先级"
+      title="接待优先级"
       :ok-loading="saving"
       :mask-closable="false"
       width="600px"
@@ -219,7 +219,7 @@
 
     <a-modal
       v-model:visible="unattendedVisible"
-      title="无人值守兜底"
+      title="离线接待"
       :ok-loading="saving"
       :mask-closable="false"
       width="600px"
@@ -229,7 +229,7 @@
         {{ saveError }}
       </a-alert>
       <a-form :model="unattendedDraft" layout="vertical">
-        <a-form-item label="启用无人值守兜底">
+        <a-form-item label="启用离线接待">
           <a-switch
             v-model="unattendedDraft.unattended_enabled"
             data-testid="policy-unattended_enabled"
@@ -254,7 +254,7 @@
 
     <a-modal
       v-model:visible="takeoverVisible"
-      title="接管提示"
+      title="会话接管"
       :ok-loading="saving"
       :mask-closable="false"
       @ok="saveTakeover"
@@ -269,7 +269,7 @@
             data-testid="policy-takeover_popup_enabled"
           />
           <template #extra>
-            关闭后客服 App 不再弹接管提示，AI 继续接待该会话（客服仍可在会话列表手动接入）。
+            关闭后客服 App 不再弹会话接管，AI 继续接待该会话（客服仍可在会话列表手动接入）。
           </template>
         </a-form-item>
       </a-form>
@@ -292,7 +292,7 @@
 
     <a-modal
       v-model:visible="blacklistVisible"
-      title="黑名单（仅 IP）"
+      title="访问黑名单"
       :footer="false"
       width="860px"
       unmount-on-close
@@ -306,7 +306,7 @@
 
     <a-modal
       v-model:visible="queueListVisible"
-      title="排队队列"
+      title="实时排队"
       :footer="false"
       width="900px"
       unmount-on-close
@@ -489,7 +489,7 @@
   const cards = computed(() => [
     {
       key: 'queue' as SectionKey,
-      title: '排队与技能组',
+      title: '排队与分组',
       desc: '开启排队后按技能组与优先级分配客服，并限制最长等待时间。',
       rows: [
         { label: '启用排队', value: onOff(policy.queue_enabled) },
@@ -499,7 +499,7 @@
     },
     {
       key: 'sla' as SectionKey,
-      title: 'SLA 与超时',
+      title: '响应时限',
       desc: '首响时限与客服空闲判定，用于统计、提醒与自动处置。',
       rows: [
         {
@@ -514,11 +514,11 @@
           value: policy.sla_idle_action === 'reassign' ? '转其他客服' : '交回 AI',
         },
       ],
-      action: '配置 SLA',
+      action: '配置响应时限',
     },
     {
       key: 'autoclose' as SectionKey,
-      title: '超时自动关闭',
+      title: '会话自动结束',
       desc: '双方静默超时后自动结束会话，避免僵尸会话堆积。',
       rows: [
         {
@@ -526,11 +526,11 @@
           value: minutesText(policy.auto_close_idle_minutes),
         },
       ],
-      action: '配置自动关闭',
+      action: '配置结束规则',
     },
     {
       key: 'priority' as SectionKey,
-      title: 'AI 与关键词优先级',
+      title: '接待优先级',
       desc: '决定关键词规则与 AI 回复的先后关系。',
       rows: [
         {
@@ -542,22 +542,22 @@
     },
     {
       key: 'unattended' as SectionKey,
-      title: '无人值守兜底',
+      title: '离线接待',
       desc: '排队超时或非营业时间时，自动下发兜底话术。',
       rows: [
         { label: '启用兜底', value: onOff(policy.unattended_enabled) },
         { label: '兜底话术', value: replySummary(policy.unattended_reply) },
       ],
-      action: '配置兜底',
+      action: '配置离线接待',
     },
     {
       key: 'takeover' as SectionKey,
-      title: '接管提示',
-      desc: '客服 App 是否弹出接管提示，直接关系到响应速度。',
+      title: '会话接管',
+      desc: '客服 App 是否弹出会话接管，直接关系到响应速度。',
       rows: [
         { label: '接管弹窗', value: onOff(policy.takeover_popup_enabled) },
       ],
-      action: '配置接管',
+      action: '配置会话接管',
     },
     {
       key: 'keywords' as SectionKey,
@@ -571,16 +571,16 @@
     },
     {
       key: 'blacklist' as SectionKey,
-      title: '黑名单（仅 IP）',
+      title: '访问黑名单',
       desc: '只允许按 IP 封禁；访客 / 账号维度已下线，避免误封正常用户。',
       tag: countText(blacklistCount.value),
       tagColor: 'orange',
       rows: [{ label: 'IP 条目', value: countText(blacklistCount.value) }],
-      action: '管理 IP 黑名单',
+      action: '管理访问黑名单',
     },
     {
       key: 'queueList' as SectionKey,
-      title: '排队队列',
+      title: '实时排队',
       desc: '实时查看排队中的会话、等待时长与所属分组。',
       tag: queueCount.value === null ? '-' : `${queueCount.value} 个排队`,
       tagColor: 'green',
@@ -676,7 +676,7 @@
         queue_enabled: Boolean(queueDraft.queue_enabled),
         max_wait_seconds: toPolicyNumber(queueDraft.max_wait_seconds),
       },
-      '排队与技能组已保存',
+      '排队与分组已保存',
       () => {
         queueVisible.value = false;
       }
@@ -692,7 +692,7 @@
         sla_idle_minutes: toPolicyNumber(slaDraft.sla_idle_minutes),
         sla_idle_action: slaDraft.sla_idle_action,
       },
-      'SLA 与超时已保存',
+      '响应时限已保存',
       () => {
         slaVisible.value = false;
       }
@@ -706,7 +706,7 @@
           autoCloseDraft.auto_close_idle_minutes
         ),
       },
-      '超时自动关闭已保存',
+      '会话自动结束已保存',
       () => {
         autoCloseVisible.value = false;
       }
@@ -716,7 +716,7 @@
   function savePriority() {
     return submitSection(
       { ai_keyword_priority: priorityDraft.ai_keyword_priority },
-      'AI 与关键词优先级已保存',
+      '接待优先级已保存',
       () => {
         priorityVisible.value = false;
       }
@@ -729,7 +729,7 @@
         unattended_enabled: Boolean(unattendedDraft.unattended_enabled),
         unattended_reply: String(unattendedDraft.unattended_reply ?? ''),
       },
-      '无人值守兜底已保存',
+      '离线接待已保存',
       () => {
         unattendedVisible.value = false;
       }
@@ -739,7 +739,7 @@
   function saveTakeover() {
     return submitSection(
       { takeover_popup_enabled: Boolean(takeoverDraft.takeover_popup_enabled) },
-      '接管提示已保存',
+      '会话接管已保存',
       () => {
         takeoverVisible.value = false;
       }
@@ -753,7 +753,7 @@
       const result = await fetchServicePolicy();
       applyPolicy(result?.policy ?? result);
     } catch (reason: any) {
-      loadError.value = backendMessage(reason, '客服策略加载失败，请稍后重试。');
+      loadError.value = backendMessage(reason, '服务策略加载失败，请稍后重试。');
     } finally {
       loading.value = false;
     }
@@ -804,7 +804,7 @@
   function onQueueNavigate(conversationId: string) {
     queueListVisible.value = false;
     router.push({
-      path: '/operations/inquiries',
+      path: '/service/inquiries',
       query: { conversation: conversationId },
     });
   }

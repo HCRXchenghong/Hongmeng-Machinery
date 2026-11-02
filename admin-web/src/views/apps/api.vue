@@ -1,6 +1,6 @@
 <template>
   <a-card :bordered="false">
-    <template #title>API 管理</template>
+    <template #title>接口授权</template>
     <template #extra>
       <a-space>
         <a-button @click="openDocs">接入说明</a-button>

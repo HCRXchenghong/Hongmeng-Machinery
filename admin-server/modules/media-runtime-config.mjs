@@ -1,4 +1,5 @@
 const DEFAULT_IMAGE_MODELS = 'gpt-image-1,dall-e-3,dall-e-2';
+const DEFAULT_AI_SAFETY_PROMPT = '画面中不要出现任何品牌 logo、商标、文字、水印或第三方品牌标识；不要模仿现有品牌。';
 const DEFAULT_MEDIA_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif',
   'video/mp4', 'video/webm', 'video/quicktime', 'application/pdf', 'application/zip',
@@ -72,7 +73,8 @@ export function mediaRuntimeConfigFromEnv(env = process.env) {
       allowedHosts: clean(env.ADMIN_AI_ALLOWED_HOSTS || 'api.openai.com', 4096),
       downloadHosts: clean(env.ADMIN_AI_IMAGE_DOWNLOAD_HOSTS || 'api.openai.com,oaidalleapiprodscus.blob.core.windows.net', 4096),
       configuredModels: clean(env.ADMIN_AI_IMAGE_MODELS || DEFAULT_IMAGE_MODELS, 4096),
-      requestTimeoutMs: boundedNumber(env.ADMIN_AI_REQUEST_TIMEOUT_MS, 180_000, 10_000, 600_000)
+      requestTimeoutMs: boundedNumber(env.ADMIN_AI_REQUEST_TIMEOUT_MS, 180_000, 10_000, 600_000),
+      safetyPrompt: clean(env.ADMIN_AI_IMAGE_SAFETY_PROMPT || DEFAULT_AI_SAFETY_PROMPT, 2000)
     }
   };
 }
@@ -144,7 +146,8 @@ export function normalizeAiImageUpdate(payload, current) {
     allowedHosts,
     downloadHosts: commaList(payload.downloadHosts ?? current.downloadHosts, ['api.openai.com', 'oaidalleapiprodscus.blob.core.windows.net']),
     configuredModels: commaList(payload.configuredModels ?? current.configuredModels, ['gpt-image-1', 'dall-e-3', 'dall-e-2']),
-    requestTimeoutMs: boundedNumber(payload.requestTimeoutMs, current.requestTimeoutMs, 10_000, 600_000)
+    requestTimeoutMs: boundedNumber(payload.requestTimeoutMs, current.requestTimeoutMs, 10_000, 600_000),
+    safetyPrompt: clean(payload.safetyPrompt ?? current.safetyPrompt, 2000)
   };
   if (!next.defaultModel) throw new Error('默认生图模型不能为空。');
   if (!next.configuredModels.split(',').includes(next.defaultModel)) {

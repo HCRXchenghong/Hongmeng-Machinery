@@ -10,7 +10,7 @@ function errorStatus(error, fallback = 400) {
 export function createMediaRouter({
   upload, replace, search, get, remove, references, referenceUrls, stats, storageHealth,
   listCategories, createCategory, deleteCategory, createPresignedUpload, confirmPresignedUpload,
-  aiModels, aiGenerate, aiPreview, aiCommitPreview, aiDiscardPreview, runtimeStatus,
+  aiModels, aiGenerate, aiPreview, aiCommitPreview, aiDiscardPreview, aiExportPreview, runtimeStatus,
   bodyJson, json, verifySession, auditEvent
 }) {
   async function referencesFor(media) {
@@ -34,13 +34,14 @@ export function createMediaRouter({
     const aiGeneratePath = pathname === '/site-admin-api/media/ai-generate' && req.method === 'POST';
     const aiPreviewPath = pathname === '/site-admin-api/media/ai-preview' && req.method === 'POST';
     const aiPreviewCommitMatch = pathname.match(/^\/site-admin-api\/media\/ai-preview\/([^/]+)\/commit$/);
+    const aiPreviewExportMatch = pathname.match(/^\/site-admin-api\/media\/ai-preview\/([^/]+)\/export$/);
     const aiPreviewMatch = pathname.match(/^\/site-admin-api\/media\/ai-preview\/([^/]+)$/);
     const runtimePath = pathname === '/site-admin-api/media/runtime' && req.method === 'GET';
     const referenceMatch = pathname.match(/^\/site-admin-api\/media\/([^/]+)\/references$/);
     const replaceMatch = pathname.match(/^\/site-admin-api\/media\/([^/]+)\/replace$/);
     const mediaMatch = pathname.match(/^\/site-admin-api\/media\/([^/]+)$/);
     const matched = uploadPath || listPath || statsPath || categoriesPath || categoryDeleteMatch || batchDeletePath || presignPath || confirmPath ||
-      aiModelsPath || aiGeneratePath || aiPreviewPath || aiPreviewCommitMatch || aiPreviewMatch || runtimePath || referenceMatch || replaceMatch || mediaMatch;
+      aiModelsPath || aiGeneratePath || aiPreviewPath || aiPreviewCommitMatch || aiPreviewExportMatch || aiPreviewMatch || runtimePath || referenceMatch || replaceMatch || mediaMatch;
     if (!matched) return false;
     if (!verifySession(req)) {
       json(res, 401, { error: { message: '请先登录。' } });
@@ -125,6 +126,24 @@ export function createMediaRouter({
           model: preview.model || '', size: preview.size || '', bytes: preview.bytes || 0
         });
         json(res, 201, { data: preview });
+        return true;
+      }
+      if (aiPreviewExportMatch && req.method === 'GET') {
+        const url = new URL(req.url, 'http://admin.local');
+        const file = await aiExportPreview({
+          previewId: aiPreviewExportMatch[1],
+          format: url.searchParams.get('format') || 'png'
+        });
+        await auditEvent(req, 'media.ai.preview-exported', 'ai-preview', aiPreviewExportMatch[1], {
+          format: file.format, bytes: file.buffer.length
+        });
+        res.writeHead(200, {
+          'Content-Type': file.mime,
+          'Content-Length': file.buffer.length,
+          'Content-Disposition': `attachment; filename="${file.filename.replace(/["\\]/g, '')}"`,
+          'Cache-Control': 'no-store'
+        });
+        res.end(file.buffer);
         return true;
       }
       if (aiPreviewCommitMatch && req.method === 'POST') {

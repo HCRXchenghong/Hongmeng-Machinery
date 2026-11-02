@@ -1,0 +1,103 @@
+---
+import '../styles/global.css';
+import '../styles/storefront.css';
+import Storefront from '../views/Storefront';
+import ChatWidget from '../components/ChatWidget';
+import CookieConsent from '../components/CookieConsent';
+import type { Mode } from '../views/Storefront';
+import { htmlLang as localeHtmlLang, type Locale } from '../i18n';
+import { loadStorefrontBootstrap, loadStorefrontProducts } from '../lib/storefront-bootstrap';
+import type { SeoProduct } from '../lib/product-seo';
+import type { Product } from '../lib/storefront-types';
+
+interface Props {
+  mode: Mode;
+  title: string;
+  description: string;
+  noindex?: boolean;
+  locale?: Locale;
+  product?: SeoProduct;
+  initialDetail?: Product | null;
+  initialProducts?: Product[] | null;
+}
+
+const { mode, title, description, noindex = false, locale = 'en', product, initialDetail = null } = Astro.props;
+const initialProducts = ['home', 'shop', 'product', 'cart'].includes(mode) ? await loadStorefrontProducts(locale) : null;
+const siteUrl = Astro.site ?? new URL(Astro.url.origin);
+const routePath = Astro.url.pathname.replace(/^\/(?:zh|ar)(?=\/|$)/, '') || '/';
+const localizedPath = (prefix: string) => `${prefix}${routePath === '/' ? '/' : routePath}`;
+const absoluteUrl = (path: string) => new URL(path, siteUrl).href;
+const htmlLang = localeHtmlLang(locale);
+const bootstrap = await loadStorefrontBootstrap(locale);
+const socialImage = absoluteUrl(product?.image || '/assets/generated/home-hero.webp');
+// 官网 SEO 设置：静态页面使用后台配置；商品详情继续使用商品名称/摘要与商品图。
+const seoPages = (((bootstrap.copy as any)?.seo?.pages || {}) as Record<string, { title?: string; description?: string; keywords?: string; image?: string }>);
+const rawPageSeo = seoPages[mode] || {};
+// 商品详情模板只在包含 {name} 占位符时启用，避免把同一个模板标题套到所有商品上。
+const pageSeo = product
+  ? (/\{\s*name\s*\}/i.test(`${rawPageSeo.title || ''} ${rawPageSeo.description || ''}`) ? rawPageSeo : {})
+  : (mode === 'product' ? (seoPages.shop || {}) : rawPageSeo);
+const fillProduct = (value: unknown) => String(value || '')
+  .replace(/\{\s*name\s*\}/gi, product?.name || '')
+  .replace(/\{\s*category\s*\}/gi, (product as any)?.category || '')
+  .replace(/\{\s*sku\s*\}/gi, product?.sku || '')
+  .replace(/\{\s*summary\s*\}/gi, product?.summary || '')
+  .trim();
+const pageTitle = String((product ? fillProduct(pageSeo.title) : pageSeo.title) || title).trim();
+const pageDescription = String((product ? fillProduct(pageSeo.description) : pageSeo.description) || description).trim();
+const pageKeywords = String((product ? fillProduct(pageSeo.keywords) : pageSeo.keywords) || '').trim();
+const pageImage = pageSeo.image && !product ? absoluteUrl(pageSeo.image) : socialImage;
+const productJsonLd = product ? {
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: product.name,
+  description: product.summary,
+  sku: product.sku,
+  image: [socialImage],
+  brand: { '@type': 'Brand', name: 'Hongmeng Machinery' },
+  offers: {
+    '@type': 'Offer',
+    url: absoluteUrl(Astro.url.pathname),
+    priceCurrency: product.currency,
+    price: product.price.toFixed(2),
+    availability: `https://schema.org/${product.availability}`
+  }
+} : null;
+---
+<!doctype html>
+<html lang={htmlLang} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1169b1" />
+    <link rel="icon" type="image/svg+xml" href="/assets/hongmeng-logo.svg" />
+    <title>{pageTitle} | Hongmeng Machinery</title>
+    <meta name="description" content={pageDescription} />
+    <meta name="keywords" content={pageKeywords} />
+    <meta name="keywords" content="" />
+    <meta property="og:type" content={mode === 'product' ? 'product' : 'website'} />
+    <meta property="og:site_name" content="Hongmeng Machinery" />
+    <link rel="canonical" href={absoluteUrl(localizedPath(locale === 'zh-CN' ? '/zh' : locale === 'ar' ? '/ar' : ''))} />
+    <link rel="alternate" hreflang="en-US" href={absoluteUrl(routePath)} />
+    <link rel="alternate" hreflang="zh-CN" href={absoluteUrl(localizedPath('/zh'))} />
+    <link rel="alternate" hreflang="ar" href={absoluteUrl(localizedPath('/ar'))} />
+    <link rel="alternate" hreflang="x-default" href={absoluteUrl(routePath)} />
+    <meta property="og:title" content={`${pageTitle} | Hongmeng Machinery`} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:locale" content={locale === 'zh-CN' ? 'zh_CN' : locale === 'ar' ? 'ar_SA' : 'en_US'} />
+    <meta property="og:locale:alternate" content={locale === 'en' ? 'zh_CN' : 'en_US'} />
+    <meta property="og:locale:alternate" content={locale === 'ar' ? 'zh_CN' : 'ar_SA'} />
+    <meta property="og:url" content={absoluteUrl(localizedPath(locale === 'zh-CN' ? '/zh' : locale === 'ar' ? '/ar' : ''))} />
+    <meta property="og:image" content={pageImage} />
+    <meta property="og:image:alt" content={`${pageTitle} | Hongmeng Machinery`} />
+    {product && <><meta property="product:price:amount" content={product.price.toFixed(2)} /><meta property="product:price:currency" content={product.currency} /></>}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${pageTitle} | Hongmeng Machinery`} />
+    <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={pageImage} />
+    {productJsonLd && <script type="application/ld+json" data-hongmeng-product="true" set:html={JSON.stringify(productJsonLd).replace(/</g, '\\u003c')} />}
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    {mode === 'home' && <link rel="preload" as="image" href="/assets/generated/home-hero.webp" />}
+  </head>
+  <body><Storefront client:load mode={mode} locale={locale} initialCopy={bootstrap.copy} initialSettings={bootstrap.settings} initialPolicies={bootstrap.policies} initialDetail={initialDetail} initialProducts={initialProducts} /><ChatWidget client:idle locale={locale} serviceBridgeApiUrl={import.meta.env.PUBLIC_SERVICEBRIDGE_API_URL || 'http://127.0.0.1:8081'} /><CookieConsent client:load locale={locale} /></body>
+</html>

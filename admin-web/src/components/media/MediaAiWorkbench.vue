@@ -13,13 +13,13 @@
       </a-alert>
 
       <div v-if="!configured" class="not-configured">
-        <a-empty description="尚未配置 AI 生图 API Key" />
+        <a-empty description="尚未绑定生图模型" />
         <p class="not-configured-tip">
-          请在「AI 管理 → AI 生图 → 生图配置」里填写接口地址、API Key 与模型，保存并验证通过后即可使用。
+          请先在「AI 能力 → 模型配置」创建生图供应商并绑定「生图」能力，保存并验证通过后即可使用。
         </p>
         <a-space>
           <a-button :loading="modelsLoading" @click="loadModels(true)">重新检查</a-button>
-          <a-link href="/site-admin/ai/image" target="_self">前往配置</a-link>
+          <a-link href="/site-admin/ai/models" target="_self">前往模型配置</a-link>
         </a-space>
       </div>
 
@@ -56,12 +56,7 @@
 
         <div class="field">
           <label>模型</label>
-          <a-space class="model-row">
-            <a-select v-model="model" style="flex: 1" :loading="modelsLoading">
-              <a-option v-for="name in models" :key="name" :value="name">{{ name }}</a-option>
-            </a-select>
-            <a-button :loading="modelsLoading" @click="loadModels(true)">刷新模型</a-button>
-          </a-space>
+          <a-typography-text>{{ model || '由「AI 能力 → 模型配置」中的生图绑定决定' }}</a-typography-text>
         </div>
 
         <div class="field">
@@ -81,6 +76,21 @@
           生成图片
         </a-button>
         <p class="form-state" :class="stateClass">{{ stateText }}</p>
+
+        <a-collapse ghost class="safety-block">
+          <a-collapse-item key="safety" header="安全约束（后台可配置）">
+            <a-textarea
+              v-model="safetyPrompt"
+              :max-length="2000"
+              :auto-size="{ minRows: 3, maxRows: 8 }"
+              placeholder="例如：不要生成任何品牌 logo、商标、文字、水印或竞品标识"
+            />
+            <p class="safety-hint">
+              每次生成自动追加到提示词末尾；留空表示关闭。保存后立即生效。
+            </p>
+            <a-button size="small" :loading="savingSafety" @click="saveSafety">保存安全约束</a-button>
+          </a-collapse-item>
+        </a-collapse>
       </template>
     </a-card>
 
@@ -121,6 +131,8 @@
               >
                 {{ item.status === 'uploaded' ? '移除结果' : '放弃' }}
               </a-button>
+              <a-button size="small" @click="downloadPreview(item, 'png')">导出 PNG</a-button>
+              <a-button size="small" @click="downloadPreview(item, 'webp')">导出 WebP</a-button>
             </div>
           </div>
         </article>
@@ -130,13 +142,15 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed, onMounted, ref } from 'vue';
+  import { computed, onMounted, ref, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import {
     aiCommitPreview,
     aiDiscardPreview,
     aiPreview,
+    aiPreviewExportUrl,
     fetchAiModels,
+    updateAiImageSafetyPrompt,
   } from '@/api/media';
   import type { AiCapability, AiPreviewItem, MediaCategory, MediaSettings } from '@/api/media';
   import { formatBytes } from '@/lib/media';
@@ -179,6 +193,8 @@
   const results = ref<PreviewResult[]>([]);
   const stateText = ref('临时结果保留 15 分钟，不会自动进入素材库。');
   const stateClass = ref('');
+  const safetyPrompt = ref('');
+  const savingSafety = ref(false);
 
   const models = computed(() => capability.value?.models || []);
   const configured = computed(
@@ -232,11 +248,19 @@
       });
       results.value.unshift({ ...payload.data, status: 'pending' });
       stateClass.value = 'success';
+      const [expectedWidth, expectedHeight] = size.value.split('x').map(Number);
+      const actual = payload.data.width && payload.data.height
+        ? `${payload.data.width}×${payload.data.height}`
+        : '';
       stateText.value = `生成成功，临时结果将在 ${new Date(payload.data.expiresAt).toLocaleString(
         'zh-CN',
         { hour12: false }
-      )} 前有效。`;
-      Message.success('生成成功，请在结果区选择上传或放弃。');
+      )} 前有效${actual ? `，实际尺寸 ${actual}` : ''}。`;
+      if (actual && (payload.data.width !== expectedWidth || payload.data.height !== expectedHeight)) {
+        Message.warning(`服务商实际返回 ${actual}，与所选尺寸不一致，已按实际尺寸入库。`);
+      } else {
+        Message.success('生成成功，请在结果区选择上传或放弃。');
+      }
     } catch (error: any) {
       stateClass.value = 'error';
       stateText.value = error?.message || '生成失败。';
@@ -269,6 +293,34 @@
       // 错误提示已由响应拦截器统一处理。
     }
   }
+
+  function syncSafetyPrompt() {
+    safetyPrompt.value = String(props.settings?.config?.aiImage?.safetyPrompt || '');
+  }
+
+  async function saveSafety() {
+    savingSafety.value = true;
+    try {
+      await updateAiImageSafetyPrompt(safetyPrompt.value.trim());
+      Message.success('安全约束已保存');
+    } catch (error: any) {
+      Message.error(error?.response?.data?.error?.message || error?.message || '安全约束保存失败');
+    } finally {
+      savingSafety.value = false;
+    }
+  }
+
+  function downloadPreview(item: PreviewResult, format: 'png' | 'webp') {
+    const link = document.createElement('a');
+    link.href = aiPreviewExportUrl(item.id, format);
+    link.download = `ai-${item.id}.${format}`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  watch(() => props.settings, syncSafetyPrompt, { immediate: true, deep: true });
 
   onMounted(() => {
     loadModels(false);
@@ -350,6 +402,17 @@
 
   .ai-alert {
     margin-bottom: 12px;
+  }
+
+  .safety-block {
+    margin-top: 12px;
+    border-top: 1px solid var(--color-border-2);
+  }
+
+  .safety-hint {
+    margin: 6px 0;
+    color: var(--color-text-3);
+    font-size: 12px;
   }
 
   .ai-result-grid {

@@ -1,61 +1,100 @@
 /**
- * Cookie consent record shared by the banner (`CookieConsent.tsx`) and the
- * consumers of optional storage (e.g. `ChatWidget.tsx`).
+ * Cookie 选择记录。
  *
- * Stored shape: `{"necessary":true,"analytics":true|false}` under
- * `localStorage.astreva_cookie_consent`.
- *
- * Categories:
- * - `necessary`: strictly required to deliver the site and the chat service
- *   (visitor session token, language preference). Always granted.
- * - `analytics`: optional. The public site currently loads no third-party
- *   analytics or marketing script, so nothing reads this flag yet; any future
- *   tracking script must check it and stay off while it is false.
- *
- * Backwards compatibility: the legacy plain string `'accepted'` (written by the
- * previous banner) counts as "everything accepted".
+ * 只存「最小必要」的选择本身：必要标记、两个可选项、时间戳、版本与过期时间。
+ * 版本或过期不匹配时视同没同意过（弹窗会重新出现），并把此前写入的可选标识清掉。
  */
+export const CONSENT_KEY = 'hongmeng_cookie_consent_v1';
+export const CONSENT_VERSION = 2;
+/** 选择的有效期：到期后重新征求一次同意。 */
+export const CONSENT_TTL_DAYS = 180;
 
-export const COOKIE_CONSENT_KEY = 'astreva_cookie_consent';
+/** 可选标识（仅在同意 analytics 后写入）。 */
+export const VISITOR_KEY = 'astreva_visitor_id';
+export const SESSION_KEY = 'astreva_session_id';
+/** 客服会话恢复用；属于必要存储，但牵连访客画像，撤回时一并清掉。 */
+export const CHAT_SESSION_KEY = 'hongmeng_service_visitor_session_v1';
 
-export type CookieConsentValue = {
-  necessary: boolean;
+export type Consent = {
+  version: number;
+  necessary: true;
   analytics: boolean;
+  marketing: boolean;
+  updatedAt: string;
+  expiresAt: string;
 };
 
-const LEGACY_ACCEPTED = 'accepted';
+/** granted：已同意 analytics；rejected：明确拒绝；unknown：还没选过。 */
+export type ConsentState = 'granted' | 'rejected' | 'unknown';
 
-/** Reads the stored consent, or `null` when the visitor has not chosen yet. */
-export function readCookieConsent(): CookieConsentValue | null {
-  if (typeof window === 'undefined') return null;
+function remove(key: string, store: Storage | null) {
   try {
-    const raw = window.localStorage.getItem(COOKIE_CONSENT_KEY);
-    if (!raw) return null;
-    if (raw === LEGACY_ACCEPTED) return { necessary: true, analytics: true };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const record = parsed as Record<string, unknown>;
-    return { necessary: record.necessary !== false, analytics: record.analytics === true };
+    store?.removeItem(key);
+  } catch {
+    /* 隐私模式下可能不可写 */
+  }
+}
+
+/** 清掉所有可选标识：拒绝或过期后不再保留可跨天关联的 ID。 */
+export function clearOptionalIdentifiers(): void {
+  if (typeof window === 'undefined') return;
+  remove(VISITOR_KEY, window.localStorage);
+  remove(SESSION_KEY, window.sessionStorage);
+  remove(CHAT_SESSION_KEY, window.localStorage);
+}
+
+function isValid(value: Partial<Consent> | null, now: number): value is Consent {
+  if (!value) return false;
+  if (value.necessary !== true) return false;
+  if (typeof value.analytics !== 'boolean' || typeof value.marketing !== 'boolean') return false;
+  if (value.version !== CONSENT_VERSION) return false;
+  const expires = Date.parse(String(value.expiresAt || ''));
+  return Number.isFinite(expires) && expires > now;
+}
+
+export function readConsent(): Consent | null {
+  if (typeof window === 'undefined') return null;
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(CONSENT_KEY);
   } catch {
     return null;
   }
-}
-
-/** Persists the visitor choice and notifies any listener on the page. */
-export function writeCookieConsent(value: CookieConsentValue) {
+  if (!raw) return null;
+  let parsed: Partial<Consent> | null = null;
   try {
-    window.localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(value));
+    parsed = JSON.parse(raw) as Partial<Consent>;
   } catch {
-    /* storage unavailable - the banner still closes for this page view */
+    parsed = null;
   }
-  window.dispatchEvent(new CustomEvent('astreva:cookie-consent', { detail: value }));
+  if (isValid(parsed, Date.now())) return parsed;
+  // 过期 / 旧版本 / 损坏：丢弃记录并清掉可选标识，让弹窗重新出现。
+  remove(CONSENT_KEY, window.localStorage);
+  clearOptionalIdentifiers();
+  return null;
 }
 
-/**
- * Only non-essential storage is gated by consent. The site never blocks
- * strictly necessary storage (it is required to provide the requested service).
- */
-export function consentAllowsCategory(category: 'necessary' | 'analytics'): boolean {
-  if (category === 'necessary') return true;
-  return readCookieConsent()?.analytics === true;
+export function consentState(): ConsentState {
+  const consent = readConsent();
+  if (!consent) return 'unknown';
+  return consent.analytics ? 'granted' : 'rejected';
+}
+
+/** 写入新的选择；拒绝时立刻清掉可选标识。 */
+export function writeConsent(next: { analytics: boolean; marketing: boolean }): Consent {
+  const consent: Consent = {
+    version: CONSENT_VERSION,
+    necessary: true,
+    analytics: next.analytics,
+    marketing: next.marketing,
+    updatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + CONSENT_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  };
+  try {
+    window.localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
+  } catch {
+    /* 存不住时本次会话内仍然生效 */
+  }
+  if (!consent.analytics) clearOptionalIdentifiers();
+  return consent;
 }

@@ -83,8 +83,8 @@ test('匿名埋点：未同意也计入 UV，且不影响访问明细与危险�
     assert.ok(anonymousRows.every((item) => /^anon_[0-9a-f]{32}$/.test(item.visitorId)), '匿名访问的 visitor_id 应是服务端派生的匿名键');
     assert.ok(rows.every((item) => item.visitorId !== 'attacker_supplied'), '匿名上报不得采信客户端 visitor_id');
     assert.ok(anonymousRows.every((item) => item.sessionId === ''), '匿名上报不保存 session_id');
-    // 访问明细仍保留 IP / UA，供安全审计。
-    assert.ok(anonymousRows.every((item) => item.ip === '198.51.100.10'));
+    // 匿名访问明细只保留归并后的网段 IP（/24、/64），明文 IP 进安全日志。
+    assert.ok(anonymousRows.every((item) => item.ip === '198.51.100.0'), '匿名明细里的 IP 应已归并到网段');
     assert.match(anonymousRows[0].userAgent, /Chrome/);
     assert.equal(anonymousRows.find((item) => item.path === '/landing').path, '/landing');
 
@@ -95,7 +95,10 @@ test('匿名埋点：未同意也计入 UV，且不影响访问明细与危险�
     assert.equal(summary.today.uv, 2, '不同 IP 的匿名访客计为不同 UV');
 
     // 4) 已同意上报：按前端真实 visitor_id 计数，同 id 不同 IP 不再新增 UV。
-    assert.equal((await beacon('192.0.2.50', { path: '/pricing', visitor_id: 'vis_real_1', session_id: 'ses_real_1' })).status, 202);
+    const firstIdentified = await beacon('192.0.2.50', { path: '/pricing', visitor_id: 'vis_real_1', session_id: 'ses_real_1' });
+    assert.equal(firstIdentified.status, 202);
+    const { forget_token: forgetToken } = await firstIdentified.json();
+    assert.match(forgetToken, /^[0-9a-f]{32}$/, '带标识的埋点应返回删除令牌');
     assert.equal((await beacon('192.0.2.51', { path: '/pricing', visitor_id: 'vis_real_1', session_id: 'ses_real_1' })).status, 202);
     summary = await overview();
     assert.equal(summary.today.pv, 6);
@@ -118,7 +121,35 @@ test('匿名埋点：未同意也计入 UV，且不影响访问明细与危险�
     assert.ok(suspicious, '危险请求仍应写入系统日志');
     assert.equal(suspicious.level, 'danger');
     const visitEvents = events.data.filter((item) => item.source === 'visit');
-    assert.ok(visitEvents.some((item) => item.detail?.anonymous === true && item.ip === '198.51.100.10'), '匿名访问明细应进入系统日志且保留 IP');
+    assert.ok(visitEvents.some((item) => item.detail?.anonymous === true && item.ip === '198.51.100.0'), '匿名访问明细应进入系统日志，IP 按网段归并');
+
+    // 6) 后台按完整 IP 也能筛到归并后的匿名行。
+    const byFullIp = await (await fetch(`${base}/site-admin-api/analytics/visits?limit=100&ip=198.51.100.10`, { headers: authHeaders })).json();
+    assert.ok(byFullIp.data.length >= 3, '按完整 IP 查询应命中网段归并的匿名明细');
+    assert.ok(byFullIp.data.every((item) => item.ip === '198.51.100.0'));
+
+    // 7) 访客自助删除：按 visitor_id 删掉访问明细。
+    const forgetCall = (body) => fetch(`${base}/site-admin-api/analytics/forget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://www.example.com' },
+      body: JSON.stringify(body)
+    });
+    assert.equal((await forgetCall({ visitor_id: 'vis_real_1' })).status, 403, '缺令牌应拒绝');
+    assert.equal((await forgetCall({ visitor_id: 'vis_real_1', token: 'deadbeef' })).status, 403, '错令牌应拒绝');
+    assert.equal((await forgetCall({ visitor_id: 'anon_1234', token: forgetToken })).status, 400, '匿名键不算本站标识');
+    const forget = await forgetCall({ visitor_id: 'vis_real_1', token: forgetToken });
+    assert.equal(forget.status, 200);
+    const forgotten = await forget.json();
+    assert.ok(forgotten.data.removed >= 2, '删除应覆盖该 visitor_id 的全部访问行');
+    const afterForget = await visits();
+    assert.ok(!afterForget.some((item) => item.visitorId === 'vis_real_1'), '删除后该 visitor_id 不应再出现在明细里');
+    // 幂等：再删一次仍是 200，只是 removed 为 0。
+    const again = await forgetCall({ visitor_id: 'vis_real_1', token: forgetToken });
+    assert.equal(again.status, 200);
+    assert.equal((await again.json()).data.removed, 0, '重复删除应幂等');
+    // 审计：删除动作要留痕。
+    const afterEvents = await (await fetch(`${base}/site-admin-api/system/events?limit=50`, { headers: authHeaders })).json();
+    assert.ok(afterEvents.data.some((item) => item.action === 'analytics.visitor_forgotten'), '删除应写入系统日志');
   } finally {
     server.kill('SIGTERM');
     await new Promise((resolve) => server.once('exit', resolve));

@@ -64,7 +64,7 @@ async function readBody(req) {
 /** 直接驱动 analytics router 的 handleBeacon，不依赖完整 admin-server。 */
 function createBeaconHarness({ payload, forwarder = null }) {
   const visits = [];
-  const response = { statusCode: 0, body: null };
+  const response = { statusCode: 0, body: null, setHeader() {} };
   const router = createAnalyticsRouter({
     platformStore: {
       recordVisit: async (visit) => {

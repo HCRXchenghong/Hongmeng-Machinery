@@ -7,8 +7,8 @@
     <a-alert class="tips" type="info">
       统一维护文本 / 生图模型的上游供应商，密钥加密入库、只回显末四位。
       <strong>直接在本页勾选每家供应商负责的能力</strong>：同一家可以同时勾选接待、翻译、SEO；
-      同一能力勾选另一家会切换过去。需要「同一能力多供应商按优先级故障转移」时，
-      再去「AI 管理 → 故障转移链」配置，本页的勾选会作为兜底。
+      同一能力勾选另一家会切换过去。需要「同一能力多供应商按优先级自动切换」时，
+      再去「模型与能力 → 备用模型」配置，本页的勾选会作为兜底。
     </a-alert>
     <a-table :data="providers" :loading="loading" :pagination="false" row-key="id">
       <template #columns>
@@ -283,7 +283,7 @@
     }));
   }
 
-  // 该供应商参与的能力里，哪些已经配置了故障转移链（此时勾选只是兜底）。
+  // 该供应商参与的能力里，哪些已经配置了备用模型（此时勾选只是兜底）。
   function chainHint(providerId: string): string {
     const chained = capabilitiesOf(providerId).filter((capability) =>
       bindingTargets.value.some((target) => target.capability === capability)
@@ -293,7 +293,7 @@
       (capability) =>
         CAPABILITIES.find((item) => item.capability === capability)?.label || capability
     );
-    return `已配置故障转移链：${labels.join('、')}（这里的勾选作为兜底）`;
+    return `已配置备用模型：${labels.join('、')}（这里的勾选作为兜底）`;
   }
 
   async function handleCapabilities(record: any, values: any) {
@@ -329,7 +329,7 @@
         bindingTargets.value.some((target) => target.capability === capability)
       );
       if (chained.length) {
-        Message.info('该能力已配置故障转移链，当前勾选作为兜底供应商');
+        Message.info('该能力已配置备用模型，当前勾选作为兜底供应商');
       }
     } catch (error: any) {
       Message.error(`保存能力失败：${errorMessage(error)}`);

@@ -9,8 +9,8 @@ export default {
     locale: '工作台',
     requiresAuth: true,
     icon: 'IconDashboard',
-    order: 1,
-    hideInMenu: false,
+    order: 10,
+    hideInMenu: false
   },
   children: [
     {
@@ -18,10 +18,10 @@ export default {
       name: 'Workspace',
       component: () => import('@/views/dashboard/index.vue'),
       meta: {
-        title: '数据看板',
-        locale: '数据看板',
-        requiresAuth: true,
-      },
-    },
-  ],
+        title: '经营概览',
+        locale: '经营概览',
+        requiresAuth: true
+      }
+    }
+  ]
 };

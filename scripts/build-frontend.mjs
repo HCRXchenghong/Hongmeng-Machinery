@@ -5,8 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_FALLBACK_URL = 'http://127.0.0.1:1337/site-admin-api/public-fallback-content';
-const DEFAULT_CURRENT_URL = 'http://127.0.0.1:1337/site-admin-api/public-content';
+const DEFAULT_FALLBACK_URL = 'http://127.0.0.1:1338/site-admin-api/public-fallback-content';
+const DEFAULT_CURRENT_URL = 'http://127.0.0.1:1338/site-admin-api/public-content';
 
 function isSiteContent(value) {
   return Boolean(
@@ -166,29 +166,11 @@ async function publishPreview(distDir, publishDir) {
 }
 
 export async function buildFrontend(options = {}) {
-  const source = options.source || process.env.BUILD_CONTENT_SOURCE || 'current';
   const isPreview = options.target === 'preview';
-  const snapshot = options.snapshotContent
-    ? { content: options.snapshotContent, version: { id: 'draft-preview', name: '草稿预览' } }
-    : await resolveBuildSnapshot(source);
-  let apiBase = process.env.CONTENT_API_URL || '';
-  if (!apiBase && process.env.CURRENT_CONTENT_URL) {
-    try {
-      apiBase = new URL(process.env.CURRENT_CONTENT_URL).origin;
-    } catch {
-      apiBase = '';
-    }
-  }
-  if (!apiBase) apiBase = 'http://127.0.0.1:1337';
-  await withSnapshotContentApi(snapshot, (contentApiUrl) => run('npm', ['run', 'build:frontend'], {
-    env: {
-      ...process.env,
-      CONTENT_API_URL: contentApiUrl,
-      // PUBLIC_ADMIN_URL 会被烘进页面（埋点、语言推荐）。缺失时绝不能退回快照地址：
-      // 那是一个构建结束就消失的随机端口，线上埋点会 100% 丢失。
-      PUBLIC_ADMIN_URL: process.env.PUBLIC_ADMIN_URL || apiBase
-    }
-  }), { apiBase });
+  // 商城前端的页面内容独立于原 CMS，仅依赖公开的商品、订单与咨询 API。
+  await run('npm', ['run', 'build:frontend'], {
+    env: { ...process.env, PUBLIC_ADMIN_URL: process.env.PUBLIC_ADMIN_URL || 'http://127.0.0.1:1338' }
+  });
   const publishDir = process.env.PUBLISH_DIR || '';
   if (!publishDir) return;
   const resolvedPublishDir = path.resolve(publishDir);

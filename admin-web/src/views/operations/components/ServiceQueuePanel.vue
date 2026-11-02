@@ -74,7 +74,7 @@
     </a-table>
 
     <a-typography-text type="secondary" class="footnote">
-      提示：点「查看会话」会跳到「运营中心 → 询盘管理」并自动选中该会话；若会话已结束则无法打开。
+      提示：点「查看会话」会跳到「客服 → 会话与询盘」并自动选中该会话；若会话已结束则无法打开。
     </a-typography-text>
   </div>
 </template>

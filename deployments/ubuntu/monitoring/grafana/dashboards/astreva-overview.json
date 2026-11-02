@@ -1,7 +1,7 @@
 {
   "uid": "astreva-overview",
   "title": "ASTREVA 运维总览",
-  "description": "WS 连接数、Go 协程数与抓取目标状态。启停方式见 docs/OPERATIONS.md。",
+  "description": "WS 连接数、Go 协程数与抓取目标状态。启停方式见 README.md 的「运维」章节。",
   "tags": ["astreva", "operations"],
   "timezone": "browser",
   "schemaVersion": 39,

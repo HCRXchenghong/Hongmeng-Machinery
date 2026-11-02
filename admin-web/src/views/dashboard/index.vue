@@ -167,7 +167,7 @@
                 <span class="status-dot" :class="row.level"></span>
                 <div class="service-main">
                   <div class="service-name">
-                    <span class="service-label">{{ row.label }}</span>
+                    <span class="service-label">{{ row.label === '网站翻译' ? '翻译服务' : row.label }}</span>
                     <a-tag :color="row.tagColor" size="small">{{ row.statusLabel }}</a-tag>
                   </div>
                   <div class="service-desc">{{ row.description }}</div>

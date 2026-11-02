@@ -1,0 +1,18 @@
+{
+  "events": [
+    {
+      "id": "4b90bba0-641e-4592-a9d2-e74e8cc4a1dd",
+      "actorId": "",
+      "actorEmail": "admin-4d10d089@test.local",
+      "action": "auth.setup.completed",
+      "resource": "admin-user",
+      "resourceId": "87cca4cb-d06b-4390-bdea-61a74f489c5f",
+      "ip": "127.0.0.1",
+      "userAgent": "node",
+      "detail": {
+        "email": "admin-4d10d089@test.local"
+      },
+      "createdAt": "2026-10-31T06:57:01.226Z"
+    }
+  ]
+}

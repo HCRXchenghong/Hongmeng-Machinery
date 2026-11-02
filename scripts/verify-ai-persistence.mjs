@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const ENGINE = (process.env.SERVICEBRIDGE_API_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+const ENGINE = (process.env.SERVICEBRIDGE_API_URL || 'http://127.0.0.1:8081').replace(/\/+$/, '');
 const ACCOUNT = process.env.SERVICEBRIDGE_ADMIN_ACCOUNT || 'superadmin';
 const PASSWORD = process.env.SERVICEBRIDGE_ADMIN_PASSWORD || process.env.ADMIN_BOOTSTRAP_PASSWORD || '123456';
 const FINGERPRINT_FILE = process.env.ASTREVA_PERSIST_FINGERPRINT || '/tmp/astreva-ai-persistence.json';

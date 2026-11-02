@@ -66,7 +66,7 @@ export async function createAdminSession(base, options = {}) {
     if (!verify.ok) throw new Error(`2FA 绑定失败：${verify.status} ${await verify.text()}`);
     const cookieValue = cookieValueFromResponse(verify);
     if (!cookieValue) throw new Error('2FA 绑定成功但没有返回会话 Cookie');
-    return { cookieValue, cookieHeader: `astreva_admin_session=${cookieValue}`, email, password, secret: challenge.secret };
+    return { cookieValue, cookieHeader: `hongmeng_admin_session=${cookieValue}`, email, password, secret: challenge.secret };
   }
 
   // 已存在管理员：走登录流程（需要调用方提供 secret）
@@ -87,12 +87,12 @@ export async function createAdminSession(base, options = {}) {
   });
   if (!verify.ok) throw new Error(`2FA 验证失败：${verify.status} ${await verify.text()}`);
   const cookieValue = cookieValueFromResponse(verify);
-  return { cookieValue, cookieHeader: `astreva_admin_session=${cookieValue}`, email, password, secret: options.secret };
+  return { cookieValue, cookieHeader: `hongmeng_admin_session=${cookieValue}`, email, password, secret: options.secret };
 }
 
 /** Playwright：把上面拿到的会话写进浏览器上下文。 */
 export async function applySessionCookie(context, base, session) {
   await context.addCookies([
-    { name: 'astreva_admin_session', value: session.cookieValue, url: base, httpOnly: true, sameSite: 'Lax' }
+    { name: 'hongmeng_admin_session', value: session.cookieValue, url: base, httpOnly: true, sameSite: 'Lax' }
   ]);
 }

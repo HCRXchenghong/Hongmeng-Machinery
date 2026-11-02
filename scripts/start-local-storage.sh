@@ -25,58 +25,58 @@ if [[ "$CMS_STORE_DRIVER" != "postgres" || "$ADMIN_MEDIA_DRIVER" != "s3" ]]; the
   exit 1
 fi
 
-db_password="${DATABASE_URL#postgres://astreva_cms:}"
+db_password="${DATABASE_URL#postgres://hongmeng_cms:}"
 db_password="${db_password%%@*}"
 
-if ! docker inspect astreva-cms-postgres >/dev/null 2>&1; then
-  docker run -d --name astreva-cms-postgres --restart unless-stopped \
-    -p 127.0.0.1:5433:5432 \
-    -e POSTGRES_DB=astreva_cms \
-    -e POSTGRES_USER=astreva_cms \
+if ! docker inspect hongmeng-cms-postgres >/dev/null 2>&1; then
+  docker run -d --name hongmeng-cms-postgres --restart unless-stopped \
+    -p 127.0.0.1:${POSTGRES_HOST_PORT:-55435}:5432 \
+    -e POSTGRES_DB=hongmeng_cms \
+    -e POSTGRES_USER=hongmeng_cms \
     -e POSTGRES_PASSWORD="$db_password" \
-    -v astreva-cms-postgres-data:/var/lib/postgresql/data \
+    -v hongmeng-cms-postgres-data:/var/lib/postgresql/data \
     postgres:16-alpine >/dev/null
 else
-  docker start astreva-cms-postgres >/dev/null
+  docker start hongmeng-cms-postgres >/dev/null
 fi
 
-if ! docker inspect astreva-cms-minio >/dev/null 2>&1; then
-  docker run -d --name astreva-cms-minio --restart unless-stopped \
-    -p 127.0.0.1:10006:9000 \
-    -p 127.0.0.1:10007:9001 \
+if ! docker inspect hongmeng-cms-minio >/dev/null 2>&1; then
+  docker run -d --name hongmeng-cms-minio --restart unless-stopped \
+    -p 127.0.0.1:${MINIO_API_PORT:-10016}:9000 \
+    -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:9001 \
     -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
     -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
-    -v astreva-cms-minio-data:/data \
+    -v hongmeng-cms-minio-data:/data \
     minio/minio:RELEASE.2024-01-11T07-46-16Z server /data --console-address :9001 >/dev/null
 else
   # 旧容器可能没有映射控制台端口；检测到就重建（数据在命名卷里不会丢）。
-  if ! docker port astreva-cms-minio 9001 >/dev/null 2>&1; then
-    echo "重建 MinIO 容器以暴露 Web 控制台（127.0.0.1:10007）..."
-    docker rm -f astreva-cms-minio >/dev/null
-    docker run -d --name astreva-cms-minio --restart unless-stopped \
-      -p 127.0.0.1:10006:9000 \
-      -p 127.0.0.1:10007:9001 \
+  if ! docker port hongmeng-cms-minio 9001 >/dev/null 2>&1; then
+    echo "重建 MinIO 容器以暴露 Web 控制台（127.0.0.1:${MINIO_CONSOLE_PORT:-10017}）..."
+    docker rm -f hongmeng-cms-minio >/dev/null
+    docker run -d --name hongmeng-cms-minio --restart unless-stopped \
+      -p 127.0.0.1:${MINIO_API_PORT:-10016}:9000 \
+      -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:9001 \
       -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
       -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
-      -v astreva-cms-minio-data:/data \
+      -v hongmeng-cms-minio-data:/data \
       minio/minio:RELEASE.2024-01-11T07-46-16Z server /data --console-address :9001 >/dev/null
   else
-    docker start astreva-cms-minio >/dev/null
+    docker start hongmeng-cms-minio >/dev/null
   fi
 fi
 
 for _ in $(seq 1 30); do
-  docker exec astreva-cms-postgres pg_isready -U astreva_cms -d astreva_cms >/dev/null 2>&1 && break
+  docker exec hongmeng-cms-postgres pg_isready -U hongmeng_cms -d hongmeng_cms >/dev/null 2>&1 && break
   sleep 1
 done
-docker exec astreva-cms-postgres pg_isready -U astreva_cms -d astreva_cms >/dev/null
+docker exec hongmeng-cms-postgres pg_isready -U hongmeng_cms -d hongmeng_cms >/dev/null
 
 # Go 客服引擎用自己的库：它的 ensureCoreTables 会建 conversations/messages/sessions 等表，
-# 与后台 CMS 的表混在同一个库里容易重名冲突，因此单独建 astreva_engine（幂等）。
-if ! docker exec astreva-cms-postgres psql -U astreva_cms -d postgres -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='astreva_engine'" | grep -q 1; then
-  echo "创建客服引擎数据库 astreva_engine（AI 供应商/绑定等数据持久化到这里）..."
-  docker exec astreva-cms-postgres psql -U astreva_cms -d postgres -c "CREATE DATABASE astreva_engine" >/dev/null
+# 与后台 CMS 的表混在同一个库里容易重名冲突，因此单独建 hongmeng_engine（幂等）。
+if ! docker exec hongmeng-cms-postgres psql -U hongmeng_cms -d postgres -tAc \
+  "SELECT 1 FROM pg_database WHERE datname='hongmeng_engine'" | grep -q 1; then
+  echo "创建客服引擎数据库 hongmeng_engine（AI 供应商/绑定等数据持久化到这里）..."
+  docker exec hongmeng-cms-postgres psql -U hongmeng_cms -d postgres -c "CREATE DATABASE hongmeng_engine" >/dev/null
 fi
 
 for _ in $(seq 1 30); do

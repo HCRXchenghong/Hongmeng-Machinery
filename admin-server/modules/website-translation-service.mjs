@@ -192,7 +192,7 @@ function promptFor(locale, entries) {
   return [
     `将下面的官网文案从简体中文专业翻译为${localeLabel(locale)}。`,
     '你必须只返回 JSON 数组，每项仅包含 id 和 text，顺序、id 和条目数必须与输入一致。',
-    '保留 ASTREVA 等品牌名、产品型号、{category} 等占位符、URL、HTML 和换行结构；不要解释，不要 Markdown 代码块。',
+    '保留宏盟机械、HONGMENG MACHINERY 等品牌名、产品型号、{category} 等占位符、URL、HTML 和换行结构；不要解释，不要 Markdown 代码块。',
     locale === 'ar' ? '阿拉伯语使用现代标准阿拉伯语，保持商业官网语气。' : '英语使用自然、准确的国际商务网站语气。',
     JSON.stringify(entries)
   ].join('\n');
@@ -284,7 +284,7 @@ export function createWebsiteTranslationService({ platformStore, fetchImpl = fet
     return models;
   }
 
-  async function requestBatch(config, apiKey, locale, batch) {
+  async function requestBatch(config, apiKey, locale, batch, allowRetry = true) {
     const prompt = promptFor(locale, batch);
     let suffix;
     let body;
@@ -309,17 +309,36 @@ export function createWebsiteTranslationService({ platformStore, fetchImpl = fet
       throw new Error(detail ? `HTTP ${response.status}: ${detail}` : `翻译失败（HTTP ${response.status}）`);
     }
     const translated = parseJsonArray(extractText(payload, config.apiType));
-    if (translated.length !== batch.length) throw new Error(`翻译上游返回 ${translated.length} 项，预期 ${batch.length} 项。`);
-    const result = new Map(translated.map((item) => [String(item?.id || ''), String(item?.text || '')]));
+    if (!translated.length) throw new Error('翻译上游返回了空结果。');
+    // 模型偶发漏项/重复时不要把整批判死：先对缺失项单独重试一次，
+    // 仍缺失的字段保留中文源文并告警，保证翻译任务能完成而不是永久失败。
+    const result = new Map();
+    for (const item of translated) {
+      const id = String(item?.id || '');
+      const text = String(item?.text || '');
+      if (batch.some((entry) => entry.id === id) && text.trim()) result.set(id, text);
+    }
+    const missing = batch.filter((item) => !result.get(item.id)?.trim());
+    if (missing.length && allowRetry && missing.length < batch.length) {
+      logger.warn(`[网站翻译] ${locale} 批次漏译 ${missing.length}/${batch.length} 项，单独重试：${missing.map((item) => item.id).join(', ')}`);
+      const retried = await requestBatch(config, apiKey, locale, missing, false);
+      for (const [id, text] of retried) result.set(id, text);
+    }
     for (const item of batch) {
-      if (!result.get(item.id)?.trim()) throw new Error(`翻译结果缺少字段 ${item.id}。`);
+      if (!result.get(item.id)?.trim()) {
+        logger.warn(`[网站翻译] ${locale} 字段 ${item.id} 仍未返回译文，保留源文。`);
+        result.set(item.id, item.text);
+      }
     }
     return result;
   }
 
   async function generateJson(prompt, options = {}) {
     const current = await loadSetting();
-    if (!current.config.enabled) throw Object.assign(new Error('网站 AI 已停用，请先在网站翻译设置中启用。'), { code: 'AI_UNCONFIGURED' });
+    // 自动翻译开关只控制“保存内容后自动翻译”；SEO 手动触发生成即使关闭自动翻译也应可用。
+    if (!current.config.enabled && options.capability !== 'seo') {
+      throw Object.assign(new Error('网站 AI 已停用，请先在网站翻译设置中启用。'), { code: 'AI_UNCONFIGURED' });
+    }
     // AI SEO 传入 capability=seo，只有真正走 SEO 生成时才解析 seo 绑定。
     const upstream = await effectiveUpstream(
       String(options.capability || 'translation'),

@@ -30,6 +30,7 @@ test('HTTP API 暴露 OpenAPI、公开内容并保护管理接口', async () => 
       ...process.env,
       PORT: String(port),
       HOST: '127.0.0.1',
+      ADMIN_CORS_ALLOWED_ORIGINS: 'http://127.0.0.1:4321',
       CMS_STORE_DRIVER: 'json',
       ALLOW_LEGACY_STORAGE_FOR_TESTS: 'true',
       ADMIN_2FA_SESSION_SECRET: 'http-api-test-session-secret',
@@ -113,7 +114,7 @@ test('HTTP API 暴露 OpenAPI、公开内容并保护管理接口', async () => 
     const legacyMediaEditor = await fetch(base + '/site-admin/content/editor?section=media', { headers: { Cookie: cookie }, redirect: 'manual' });
 
     assert.equal(openapi.openapi, '3.1.0');
-    assert.equal(content.data.site.brandName, '星渡ASTREVA');
+    assert.equal(content.data.site.brandName, '宏盟机械');
     assert.equal(content.data.site.navigation.productMenu.categoryLabel, '产品类别');
     assert.equal(content.data.productCenter.catalog.emptyCategoryMessage, '该分类的系列产品正在整理中。');
     assert.equal(content.data.staticPages.find((page) => page.slug === 'solutions').sections.videoPlayIcon, '▶');
@@ -142,26 +143,26 @@ test('HTTP API 暴露 OpenAPI、公开内容并保护管理接口', async () => 
     assert.equal(unavailableEnglish.status, 409);
     // 旧版后台页面全部 302 到 Arco 控制台对应路由。
     assert.equal(protectedEditorPage.status, 302);
-    assert.equal(protectedEditorPage.headers.get('location'), '/site-admin/content/site');
+    assert.equal(protectedEditorPage.headers.get('location'), '/site-admin/site/pages');
     assert.equal(protectedSettingsPage.status, 302);
-    assert.equal(protectedSettingsPage.headers.get('location'), '/site-admin/system/general');
+    assert.equal(protectedSettingsPage.headers.get('location'), '/site-admin/system/settings');
     assert.equal(fullSaveResponse.status, 200);
     assert.equal(staleSaveResponse.status, 409);
     assert.equal((await (await fetch(base + '/site-admin-api/public-content')).json()).data.site.brandTagline, '全量内容编辑测试');
     assert.equal(contentHubPage.status, 302);
-    assert.equal(contentHubPage.headers.get('location'), '/site-admin/content/site');
+    assert.equal(contentHubPage.headers.get('location'), '/site-admin/site/pages');
     assert.equal(allContentPage.status, 302);
-    assert.equal(allContentPage.headers.get('location'), '/site-admin/content/site');
+    assert.equal(allContentPage.headers.get('location'), '/site-admin/site/pages');
     assert.equal(seoEditorPage.status, 302);
-    assert.equal(seoEditorPage.headers.get('location'), '/site-admin/content/site');
+    assert.equal(seoEditorPage.headers.get('location'), '/site-admin/site/pages');
     assert.equal(protectedMediaPage.status, 302);
-    assert.equal(protectedMediaPage.headers.get('location'), '/site-admin/content/media');
+    assert.equal(protectedMediaPage.headers.get('location'), '/site-admin/site/media');
     assert.equal(mediaPage.status, 302);
-    assert.equal(mediaPage.headers.get('location'), '/site-admin/content/media');
+    assert.equal(mediaPage.headers.get('location'), '/site-admin/site/media');
     assert.equal(legacyMediaEditor.status, 302);
-    assert.equal(legacyMediaEditor.headers.get('location'), '/site-admin/content/media');
+    assert.equal(legacyMediaEditor.headers.get('location'), '/site-admin/site/media');
     assert.equal(translationPage.status, 302);
-    assert.equal(translationPage.headers.get('location'), '/site-admin/content/translations');
+    assert.equal(translationPage.headers.get('location'), '/site-admin/site/languages');
     assert.equal(translationStatus.status, 200);
     assert.deepEqual((await translationStatus.json()).data.translations.map((item) => item.locale), ['en', 'ar']);
   } finally {
