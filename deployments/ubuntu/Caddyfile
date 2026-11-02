@@ -47,6 +47,12 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
 
+	# 内置对象存储的 S3 网关：路径风格、bucket 名固定。
+	# 不剥离前缀，SigV4 按原路径校验，bucket 名必须与 S3_BUCKET 一致。
+	handle /hongmeng-site-media* {
+		reverse_proxy s3:8333
+	}
+
 	reverse_proxy admin-server:1337
 }
 

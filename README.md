@@ -8,7 +8,7 @@
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | 官网   | [Astro](https://astro.build/) 7、React 19、Tailwind CSS 4、[Flowbite React](https://github.com/themesberg/flowbite-react)（MIT）、lucide-react |
 | 控制台 | Vue 3、[Arco Design Vue](https://github.com/arco-design/arco-design-vue)（MIT）、Vite                                                          |
-| 服务端 | Node.js、PostgreSQL、S3 兼容对象存储                                                                                                           |
+| 服务端 | Node.js、PostgreSQL、内置 S3 网关（SeaweedFS）                                                                                                 |
 | 客服   | Go（ServiceBridge）                                                                                                                            |
 
 官网语言为 `/` 英文、`/zh/` 中文、`/ar/` 阿拉伯语；所有语言在构建期完成服务端本地化，刷新时不会再先显示英文再切换。
@@ -82,11 +82,38 @@ bash scripts/run-local-stack.sh
 
 ## 生产部署
 
-使用 `deployments/ubuntu/` 下的 Compose，单独设置域名、数据库、S3 存储、强随机密钥与站点来源。上线前按 `deployments/ubuntu/.env.ubuntu.example` 逐项核对，并按实际服务商接入税费、物流报价与邮件通知。
+Ubuntu 22.04 / 24.04 上以 root 一行执行，脚本自动完成环境检查、线路测速、Docker 安装、证书签发与全量自检：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HCRXchenghong/Hongmeng-Machinery/main/scripts/deploy-one-click.sh | sudo bash
+```
+
+执行前把三个域名的 A 记录指向本机，运行中会询问域名与证书邮箱。脚本会：
+
+- 体检系统版本、架构、CPU/内存/磁盘、80/443 占用与系统时钟；
+- 对 apt 源、Docker 镜像、代码下载逐条测速，走最快的直连或镜像；
+- 自动安装 / 升级 Docker 与 compose，再拉取代码并构建；
+- 已有部署则原地升级，只重建容器，数据卷与环境文件原样保留（升级前自动备份数据库）；
+- 签发 Let's Encrypt 证书，之后由 Caddy 自动续期；
+- 逐项检查前后台、客服、接口、素材存储与证书，全部正常才以 0 退出，否则保留容器并打印日志。
+
+常用参数（也可写成环境变量）：
+
+| 参数                                               | 说明                                |
+| -------------------------------------------------- | ----------------------------------- |
+| `--domain` / `--admin-domain` / `--service-domain` | 三个域名，配合 `--yes` 可全自动     |
+| `--email`                                          | 证书通知邮箱                        |
+| `--check`                                          | 只体检，不部署                      |
+| `--rollback`                                       | 回滚到上一个成功版本                |
+| `--ref`                                            | 指定版本，默认最新 tag              |
+| `--monitoring`                                     | 附带 Prometheus + Grafana（仅回环） |
+| `--no-backup`                                      | 升级前不备份                        |
+
+首次运行会把凭据写在 `/opt/hongmeng-machinery/.deploy/credentials.txt`（600），装完据此登录后台并立即改密。
 
 ## 运维
 
-- 每日备份：cron `0 2 * * *` 执行 `ASTREVA_BACKUP_DIR=/srv/astreva-backups scripts/backup-production.sh`，产出 `pg_dump` gzip 与 `.sha256`，默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`）。
+- 脚本装完会写入每日 02:00 的数据库备份 cron，产物含 `pg_dump` gzip 与 `.sha256`，默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`）。
 - 恢复演练：`scripts/restore-production.sh --yes <备份文件>`，先校验 SHA-256 与 gzip，再导入隔离库 `customer_service_restore`，不覆盖生产。
-- 对象存储需在供应商侧开启 versioning 与生命周期归档，媒体不在数据库备份内。
+- 素材默认存内置对象存储（`s3-data` 卷，由 Caddy 在后台域名暴露 `/hongmeng-site-media`）；换外部 S3 / R2 时改 `.env.ubuntu` 的 `S3_ENDPOINT`、`S3_BUCKET` 与凭据后重跑脚本。
 - 告警规则与 Grafana 面板在 `deployments/ubuntu/monitoring/`。

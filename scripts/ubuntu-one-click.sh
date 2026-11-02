@@ -204,15 +204,16 @@ validate_secret ADMIN_2FA_SESSION_SECRET 24
 validate_secret METRICS_BEARER_TOKEN 24
 validate_secret MINIO_ROOT_PASSWORD 16
 
-ADMIN_MEDIA_DRIVER="${ADMIN_MEDIA_DRIVER:-s3}"
-if [[ "$ADMIN_MEDIA_DRIVER" != "s3" ]]; then
-  echo "生产环境 ADMIN_MEDIA_DRIVER 必须是 s3" >&2
-  exit 1
-fi
-need_var S3_BUCKET
-need_var S3_PUBLIC_BASE_URL
-if looks_like_placeholder "$S3_BUCKET" || looks_like_placeholder "$S3_PUBLIC_BASE_URL"; then
-  echo "S3_BUCKET / S3_PUBLIC_BASE_URL 仍然是示例占位值" >&2
+ADMIN_MEDIA_DRIVER="${ADMIN_MEDIA_DRIVER:-local}"
+if [[ "$ADMIN_MEDIA_DRIVER" == "s3" ]]; then
+  need_var S3_BUCKET
+  need_var S3_PUBLIC_BASE_URL
+  if looks_like_placeholder "$S3_BUCKET" || looks_like_placeholder "$S3_PUBLIC_BASE_URL"; then
+    echo "S3_BUCKET / S3_PUBLIC_BASE_URL 仍然是示例占位值" >&2
+    exit 1
+  fi
+elif [[ "$ADMIN_MEDIA_DRIVER" != "local" ]]; then
+  echo "ADMIN_MEDIA_DRIVER 只能是 local 或 s3" >&2
   exit 1
 fi
 

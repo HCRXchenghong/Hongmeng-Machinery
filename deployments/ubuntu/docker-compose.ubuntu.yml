@@ -199,10 +199,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      minio:
+      s3:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
     environment:
       HOST: "0.0.0.0"
       PORT: "1337"
@@ -278,7 +276,13 @@ services:
       admin-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${REBUILD_WEBHOOK_PORT}/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:${REBUILD_WEBHOOK_PORT}/healthz",
+        ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -298,43 +302,29 @@ services:
     networks:
       - hongmeng
 
-  minio:
-    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+  # MinIO 官方镜像已从 Docker Hub 下架，内置 S3 改为 SeaweedFS（MIT）。
+  # 只用它的 S3 网关给后台素材直传，不对外暴露 8333 端口，进出都走 Caddy。
+  s3:
+    image: chrislusf/seaweedfs:latest
     restart: unless-stopped
-    command: ["server", "/data"]
+    command:
+      [
+        "mini",
+        "-dir=/data",
+        "-ip.bind=0.0.0.0",
+        "-s3",
+        "-s3.port=8333",
+        "-bucket=${S3_BUCKET}",
+      ]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
     volumes:
-      - minio-data:/data
-    ports:
-      - "${MINIO_HOST_PORT:-127.0.0.1:9100}:9000"
+      - s3-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8333/ >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 30
-    networks:
-      - hongmeng
-
-  minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-    restart: "no"
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        BUCKET="$${S3_BUCKET:-hongmeng-site-media}"
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb -p "local/$$BUCKET" || true &&
-        mc anonymous set download "local/$$BUCKET" &&
-        echo "minio bucket ready: $$BUCKET"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:-hongmeng-site-media}
     networks:
       - hongmeng
 
@@ -397,7 +387,7 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  minio-data:
+  s3-data:
   servicebridge-uploads:
   geoip-data:
   admin-data:

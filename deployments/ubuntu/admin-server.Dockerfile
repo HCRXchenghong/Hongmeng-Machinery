@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY frontend/package.json ./frontend/package.json
 COPY admin-web/package.json ./admin-web/package.json
+# postinstall 需要 scripts/，缺失会让 npm ci 直接失败。
+COPY scripts/ensure-rolldown-binding.mjs ./scripts/ensure-rolldown-binding.mjs
 RUN npm ci --no-audit --no-fund
 
 # 阶段二：构建 Arco Design Pro Vue 控制台。
@@ -19,12 +21,15 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY frontend/package.json ./frontend/package.json
 COPY admin-web/package.json ./admin-web/package.json
+COPY scripts/ensure-rolldown-binding.mjs ./scripts/ensure-rolldown-binding.mjs
 RUN npm ci --omit=dev --no-audit --no-fund
 
 COPY admin-server ./admin-server
 COPY frontend ./frontend
 COPY --from=build-web /app/admin-web/dist ./admin-web/dist
-RUN adduser -D -H -u 1001 appuser \
+# 数据卷挂载点必须先于 chown 存在，否则新建命名卷归 root，appuser 无法写入。
+RUN mkdir -p /app/data /app/uploads/site-admin \
+  && adduser -D -H -u 1001 appuser \
   && chown -R appuser:appuser /app
 USER appuser
 
