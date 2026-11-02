@@ -146,7 +146,7 @@ ensure_repo() {
   in_repo_root && return 0
 
   local self="${BASH_SOURCE[0]:-}" tmp
-  tmp="$(mktemp /tmp/hongmeng-deploy-XXXXXX.sh)"
+  tmp="$(mktemp /tmp/hongmeng-deploy-XXXXXX)"
 
   if [[ -n "$self" && -f "$self" ]]; then
     cp "$self" "$tmp"
