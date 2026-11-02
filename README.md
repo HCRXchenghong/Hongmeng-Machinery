@@ -120,7 +120,7 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" \
 | `--email`                                          | 证书通知邮箱                          |
 | `--check`                                          | 只体检，不部署                        |
 | `--rollback`                                       | 回滚到上一个成功版本                  |
-| `--ref`                                            | 指定版本，默认最新 tag                |
+| `--ref`                                            | 指定版本，默认 main                   |
 | `--monitoring`                                     | 附带 Prometheus + Grafana（仅回环）   |
 | `--no-backup`                                      | 升级前不备份                          |
 | `--token`                                          | 私有仓库令牌（或用 `HONGMENG_TOKEN`） |

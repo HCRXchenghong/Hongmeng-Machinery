@@ -16,7 +16,7 @@
 #   --domain www.example.com --admin-domain admin.example.com --service-domain service.example.com
 #   --email ops@example.com        证书通知邮箱
 #   --dir /opt/hongmeng-machinery  安装目录
-#   --ref v1.0.1                   指定版本（默认最新 tag）
+#   --ref v1.0.1                   指定版本（默认 main）
 #   --yes                          全程不询问（须同时给出域名与邮箱）
 #   --monitoring                   同时启用 Prometheus + Grafana（仅回环）
 #   --no-backup                    升级前不做数据库备份
@@ -100,7 +100,7 @@ print_usage() {
   --service-domain s.example.com    客服域名
   --email ops@example.com           证书通知邮箱
   --dir /opt/hongmeng-machinery     安装目录
-  --ref v1.0.1                      指定版本（默认最新 tag）
+  --ref v1.0.1                      指定版本（默认 main）
   --yes                             全程不询问
   --monitoring                      启用监控面板
   --no-backup                       升级前不备份
@@ -494,10 +494,9 @@ compose() { docker compose -f "$DEPLOY_DIR/docker-compose.ubuntu.yml" --env-file
 
 # ---------------------------------------------------------------- 代码同步
 resolve_target_ref() {
+  # 默认跟 main（发布都打在 main 上）；旧 tag 版本号更大，按版本排会挑错，故不自动选 tag。
   [[ -n "$TARGET_REF" ]] && { printf '%s' "$TARGET_REF"; return 0; }
-  local tag
-  tag=$(git -C "$INSTALL_DIR" tag -l 'v*' --sort=-v:refname | head -1)
-  printf '%s' "${tag:-main}"
+  printf 'main'
 }
 
 update_code() {
@@ -527,6 +526,12 @@ do_rollback() {
   local prev
   prev="$(cat "$STATE_DIR/previous-ref" 2>/dev/null || true)"
   [[ -n "$prev" ]] || die "没有可回滚的版本记录"
+  if ! git -C "$INSTALL_DIR" rev-parse --verify --quiet "${prev}^{commit}" >/dev/null; then
+    # 浅克隆时目标提交可能还没拉下来，先加深再试。
+    git -C "$INSTALL_DIR" fetch --quiet --deepen=100 origin 2>/dev/null || true
+    git -C "$INSTALL_DIR" rev-parse --verify --quiet "${prev}^{commit}" >/dev/null \
+      || die "回滚目标 ${prev} 已不在仓库中"
+  fi
   step "回滚到 $prev"
   git -C "$INSTALL_DIR" checkout --quiet --force "$prev"
   HAD_INSTALL=1
@@ -589,7 +594,7 @@ verify_dns() {
     if [[ -z "$resolved" ]]; then
       warn "$d 尚无 A 记录，证书签发会失败"; bad=1
     elif [[ "$resolved" != "$PUBLIC_IP" ]]; then
-      warn "$d 解析到 $resolved，与本机公网 IP $PUBLIC_IP 不一致"; bad=1
+      warn "${d} 解析到 ${resolved}，与本机公网 IP ${PUBLIC_IP} 不一致"; bad=1
     else
       ok "$d → $PUBLIC_IP"
     fi
@@ -613,7 +618,7 @@ write_env_file() {
   local pg_pass data_key admin_pass agent_pass session_secret hook_secret metrics_token grafana_pass media_secret
 
   if [[ -f "$ENV_FILE" ]]; then
-    ok "沿用已有 $ENV_FILE（只刷新域名相关项）"
+    ok "沿用已有 ${ENV_FILE}（只刷新域名相关项）"
     pg_user="$(env_get POSTGRES_USER)"; pg_db="$(env_get POSTGRES_DB)"
     pg_user="${pg_user:-site}"; pg_db="${pg_db:-customer_service}"
     pg_pass="$(env_get POSTGRES_PASSWORD)"; data_key="$(env_get DATA_ENCRYPTION_KEY)"
@@ -706,11 +711,11 @@ EOF
 管理员账号: superadmin
 管理员密码: $admin_pass
 客服坐席密码: $agent_pass
-Grafana: http://127.0.0.1:3000 （admin / $grafana_pass）
+Grafana: http://127.0.0.1:3000 （admin / ${grafana_pass}）
 环境文件: $ENV_FILE
 EOF
   chmod 600 "$CRED_FILE"
-  ok "配置已写入 $ENV_FILE（600），凭据见 $CRED_FILE"
+  ok "配置已写入 ${ENV_FILE}（600），凭据见 ${CRED_FILE}"
   assert_no_placeholders
 }
 
@@ -792,7 +797,7 @@ check_http() {
   local label="$1" accept="$2" method="$3" host="$4" path="$5" code
   code="$(http_status "$method" "https://$host$path" "$host")"
   if [[ ",$accept," == *",$code,"* ]]; then ok "$label → $code"; return 0; fi
-  warn "$label → $code（期望 $accept）"; return 1
+  warn "${label} → ${code}（期望 ${accept}）"; return 1
 }
 
 wait_for_tls() {
