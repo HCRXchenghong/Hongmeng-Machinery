@@ -164,10 +164,10 @@ ensure_repo() {
       local src ok_dl=0
       for src in \
         "$RAW_SCRIPT" \
-        "https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/scripts/deploy-one-click.sh" \
         "https://ghproxy.net/${RAW_SCRIPT}" \
         "https://ghfast.top/${RAW_SCRIPT}" \
-        "https://gh-proxy.com/${RAW_SCRIPT}"; do
+        "https://gh-proxy.com/${RAW_SCRIPT}" \
+        "https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/scripts/deploy-one-click.sh"; do
         if curl -fsSL -m 30 "$src" -o "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then ok_dl=1; break; fi
       done
       ((ok_dl == 1)) || die "下载脚本失败：官方与镜像都不通，请检查网络"
