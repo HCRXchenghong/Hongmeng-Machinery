@@ -160,7 +160,17 @@ ensure_repo() {
         "https://api.github.com/repos/${REPO_SLUG}/contents/scripts/deploy-one-click.sh?ref=main" -o "$tmp" \
         || die "下载脚本失败，请检查令牌与网络"
     else
-      curl -fsSL -m 30 "$RAW_SCRIPT" -o "$tmp" || die "下载脚本失败，请检查网络"
+      # raw.githubusercontent 在部分网络（含大陆）不可达，逐条换源。
+      local src ok_dl=0
+      for src in \
+        "$RAW_SCRIPT" \
+        "https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/scripts/deploy-one-click.sh" \
+        "https://ghproxy.net/${RAW_SCRIPT}" \
+        "https://ghfast.top/${RAW_SCRIPT}" \
+        "https://gh-proxy.com/${RAW_SCRIPT}"; do
+        if curl -fsSL -m 30 "$src" -o "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then ok_dl=1; break; fi
+      done
+      ((ok_dl == 1)) || die "下载脚本失败：官方与镜像都不通，请检查网络"
     fi
   fi
   chmod +x "$tmp"

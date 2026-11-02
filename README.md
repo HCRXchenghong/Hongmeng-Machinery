@@ -88,7 +88,13 @@ Ubuntu 22.04 / 24.04 上以 root 一行执行，脚本自动完成环境检查�
 curl -fsSL https://raw.githubusercontent.com/HCRXchenghong/Hongmeng-Machinery/main/scripts/deploy-one-click.sh | sudo bash
 ```
 
-仓库当前是私有：上面这行会在匿名拉取时 404。改用自己的 GitHub 令牌（只需该仓库读权限）即可，令牌同时用于克隆：
+`raw.githubusercontent.com` 在部分网络（含大陆）不可达，脚本自身会依次尝试镜像源；也可以直接用国内可通的线路起手：
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/HCRXchenghong/Hongmeng-Machinery@main/scripts/deploy-one-click.sh | sudo bash
+```
+
+把仓库 fork 成私有副本时，用令牌（`repo` 读权限即可，克隆也用它）：
 
 ```bash
 TOKEN=ghp_xxxxxxxx
