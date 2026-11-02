@@ -22,6 +22,7 @@
 #   --no-backup                    升级前不做数据库备份
 #   --rollback                     回滚到上一个成功版本
 #   --check                        只体检，不部署
+#   --token <PAT>                  私有仓库访问令牌（公开仓库可省，或用 HONGMENG_TOKEN）
 #   --skip-docker-install          跳过 Docker 安装（要求已具备）
 
 set -Eeuo pipefail
@@ -40,6 +41,7 @@ readonly MIN_COMPOSE_MINOR="2.20"
 readonly MAX_TESTED_ENGINE_MAJOR=28
 
 INSTALL_DIR="${HONGMENG_DIR:-/opt/hongmeng-machinery}"
+TOKEN="${HONGMENG_TOKEN:-${GITHUB_TOKEN:-}}"
 TARGET_REF=""
 SITE_DOMAIN="${SITE_DOMAIN:-}"
 ADMIN_DOMAIN="${ADMIN_DOMAIN:-}"
@@ -117,6 +119,7 @@ parse_args() {
       --email) ACME_EMAIL="${2:-}"; shift 2 ;;
       --dir) INSTALL_DIR="${2:-}"; shift 2 ;;
       --ref) TARGET_REF="${2:-}"; shift 2 ;;
+      --token) TOKEN="${2:-}"; shift 2 ;;
       --yes|-y) ASSUME_YES=1; shift ;;
       --monitoring) ENABLE_MONITORING=1; shift ;;
       --no-backup) DO_BACKUP=0; shift ;;
@@ -152,7 +155,13 @@ ensure_repo() {
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null 2>&1 || true
     command -v curl >/dev/null 2>&1 || apt-get install -y -qq curl ca-certificates >/dev/null 2>&1 || true
-    curl -fsSL -m 30 "$RAW_SCRIPT" -o "$tmp" || die "下载脚本失败，请检查网络"
+    if [[ -n "$TOKEN" ]]; then
+      curl -fsSL -m 30 -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.raw" \
+        "https://api.github.com/repos/${REPO_SLUG}/contents/scripts/deploy-one-click.sh?ref=main" -o "$tmp" \
+        || die "下载脚本失败，请检查令牌与网络"
+    else
+      curl -fsSL -m 30 "$RAW_SCRIPT" -o "$tmp" || die "下载脚本失败，请检查网络"
+    fi
   fi
   chmod +x "$tmp"
 
@@ -399,17 +408,32 @@ PY
 }
 
 clone_repo() {
-  local dest="$1" chosen url
+  local dest="$1" chosen url auth_url
+  auth_url="https://x-access-token:${TOKEN}@github.com/${REPO_SLUG}.git"
+
+  if [[ -n "$TOKEN" ]]; then
+    # 私有仓库走代理会丢令牌，直接连 GitHub。
+    log "克隆私有仓库到 $dest"
+    git clone --quiet "$auth_url" "$dest" || die "克隆失败，检查令牌是否有该仓库读权限"
+    ok "代码已就绪"
+    return 0
+  fi
+
   chosen=$(pick_fastest "代码下载" \
     "https://ghproxy.net/https://github.com/${REPO_SLUG}.git|ghproxy" \
     "https://gh-proxy.com/https://github.com/${REPO_SLUG}.git|gh-proxy" \
     "https://ghfast.top/https://github.com/${REPO_SLUG}.git|ghfast" \
     "${REPO_URL}|直连")
   url="${chosen%%|*}"
-  MIRROR_GH="${url%//github.com*}"
+  # 直连时留空，避免拼出 https:https://...
+  MIRROR_GH=""
+  [[ "$url" != "$REPO_URL" ]] && MIRROR_GH="${url%%https://github.com*}"
 
   log "克隆仓库到 $dest"
-  git clone --quiet "$url" "$dest" || { warn "首选线路失败，改用直连"; git clone --quiet "$REPO_URL" "$dest"; }
+  if ! git clone --quiet "$url" "$dest"; then
+    warn "首选线路失败，改用直连"
+    git clone --quiet "$REPO_URL" "$dest" || die "克隆失败：仓库若为私有，请加 --token <PAT> 或用 HONGMENG_TOKEN 传入"
+  fi
   git -C "$dest" remote set-url origin "$REPO_URL"
   ok "代码已就绪"
 }
