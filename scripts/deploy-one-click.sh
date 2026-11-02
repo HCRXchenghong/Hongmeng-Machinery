@@ -938,7 +938,12 @@ main() {
   CRED_FILE="$STATE_DIR/credentials.txt"
   mkdir -p "$STATE_DIR"
   LOG_FILE="$STATE_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
-  exec > >(tee -a "$LOG_FILE") 2>&1
+  # 同时写日志；进程替换不可用时退回仅终端输出，别让部署直接挂掉。
+  exec 3>&1
+  if ! exec > >(tee -a "$LOG_FILE") 2>&1; then
+    exec >&3 2>&1
+    warn "日志无法落盘（${LOG_FILE}），仅终端输出"
+  fi
 
   printf '%s宏盟机械独立站 · 一键部署%s\n' "$C_BOLD" "$C_RESET"
 
