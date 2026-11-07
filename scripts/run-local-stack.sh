@@ -5,6 +5,30 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.local-logs"
 mkdir -p "$LOG_DIR"
 
+# --lan：把四个端口映射到本机局域网 IP，手机/同网段电脑可直接访问。
+LAN_MODE=0
+for arg in "$@"; do
+  case "$arg" in
+    --lan) LAN_MODE=1 ;;
+    --help|-h) printf '用法: %s [--lan]\n  --lan  绑定 0.0.0.0 并用局域网 IP 生成公开地址\n' "$0"; exit 0 ;;
+  esac
+done
+
+detect_lan_ip() {
+  if command -v ipconfig >/dev/null 2>&1; then
+    local iface
+    for iface in en0 en1 en2; do
+      local ip
+      ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+      [[ -n "$ip" ]] && { printf '%s' "$ip"; return 0; }
+    done
+  fi
+  if command -v hostname >/dev/null 2>&1; then
+    hostname -I 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' && return 0
+  fi
+  return 1
+}
+
 cd "$ROOT_DIR"
 
 bash "$ROOT_DIR/scripts/start-local-storage.sh"
@@ -21,6 +45,29 @@ printf '[hongmeng] building Arco admin console...\n'
   printf '[hongmeng] admin console build failed，查看 %s/admin-build.log\n' "$LOG_DIR" >&2
   exit 1
 }
+
+if (( LAN_MODE == 1 )); then
+  LAN_IP="$(detect_lan_ip || true)"
+  if [[ -z "${LAN_IP:-}" ]]; then
+    printf '[hongmeng] 取不到局域网 IP，先确认已连上 Wi-Fi/网线。\n' >&2
+    exit 1
+  fi
+  LAN_BASE="http://$LAN_IP"
+  # 绑定所有网卡；公开地址统一换成局域网 IP，前端构建期也会写入这套地址。
+  export HOST=0.0.0.0
+  export FRONTEND_HOST=0.0.0.0
+  export PUBLIC_SITE_URL="$LAN_BASE:4331"
+  export PUBLIC_ADMIN_URL="$LAN_BASE:1338"
+  export PUBLIC_ADMIN_ORIGIN="$LAN_BASE:1338"
+  export PUBLIC_LEADS_ENDPOINT="$LAN_BASE:1338/site-admin-api/leads"
+  export PUBLIC_SERVICEBRIDGE_URL="$LAN_BASE:5175"
+  export PUBLIC_SERVICEBRIDGE_API_URL="$LAN_BASE:8081"
+  export ADMIN_CORS_ALLOWED_ORIGINS="$LAN_BASE:4331,$LAN_BASE:1338,http://127.0.0.1:4331,http://localhost:4331,http://localhost:1338"
+  export SERVICEBRIDGE_CORS_ALLOWED_ORIGINS="$LAN_BASE:4331,$LAN_BASE:5175,http://127.0.0.1:4331,http://127.0.0.1:5175"
+  export CORS_ALLOWED_ORIGINS="$SERVICEBRIDGE_CORS_ALLOWED_ORIGINS"
+  export FRAME_ANCESTORS="$LAN_BASE:4331,http://127.0.0.1:4331"
+  printf '[hongmeng] 局域网模式：%s\n' "$LAN_BASE"
+fi
 
 export PUBLIC_SITE_URL="${PUBLIC_SITE_URL:-http://127.0.0.1:4331}"
 export PUBLIC_ADMIN_URL="${PUBLIC_ADMIN_URL:-http://127.0.0.1:1338}"
