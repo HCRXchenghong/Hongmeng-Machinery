@@ -773,7 +773,6 @@ containers_unhealthy() {
   local bad=0 line name state status
   while IFS='|' read -r name state status; do
     [[ -z "$name" ]] && continue
-    [[ "$name" == *minio-init* && "$state" == "exited" ]] && continue
     if [[ "$state" != "running" ]]; then warn "容器 $name 状态 $state"; bad=1; continue; fi
     [[ "$status" == *unhealthy* ]] && { warn "容器 $name 不健康"; bad=1; }
   done < <(docker ps -a --filter "label=com.docker.compose.project=$STACK_NAME" \

@@ -40,29 +40,15 @@ else
   docker start hongmeng-cms-postgres >/dev/null
 fi
 
-if ! docker inspect hongmeng-cms-minio >/dev/null 2>&1; then
-  docker run -d --name hongmeng-cms-minio --restart unless-stopped \
+# MinIO 官方镜像已从 Docker Hub 下架，本机对象存储改用 SeaweedFS 的 S3 网关（与生产一致）。
+if ! docker inspect hongmeng-cms-s3 >/dev/null 2>&1; then
+  docker run -d --name hongmeng-cms-s3 --restart unless-stopped \
     -p 127.0.0.1:${MINIO_API_PORT:-10016}:9000 \
-    -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:9001 \
-    -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
-    -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
-    -v hongmeng-cms-minio-data:/data \
-    minio/minio:RELEASE.2024-01-11T07-46-16Z server /data --console-address :9001 >/dev/null
+    -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:8888 \
+    -v hongmeng-cms-s3-data:/data \
+    chrislusf/seaweedfs:latest mini -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=9000 -bucket="$S3_BUCKET" >/dev/null
 else
-  # 旧容器可能没有映射控制台端口；检测到就重建（数据在命名卷里不会丢）。
-  if ! docker port hongmeng-cms-minio 9001 >/dev/null 2>&1; then
-    echo "重建 MinIO 容器以暴露 Web 控制台（127.0.0.1:${MINIO_CONSOLE_PORT:-10017}）..."
-    docker rm -f hongmeng-cms-minio >/dev/null
-    docker run -d --name hongmeng-cms-minio --restart unless-stopped \
-      -p 127.0.0.1:${MINIO_API_PORT:-10016}:9000 \
-      -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:9001 \
-      -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
-      -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
-      -v hongmeng-cms-minio-data:/data \
-      minio/minio:RELEASE.2024-01-11T07-46-16Z server /data --console-address :9001 >/dev/null
-  else
-    docker start hongmeng-cms-minio >/dev/null
-  fi
+  docker start hongmeng-cms-s3 >/dev/null
 fi
 
 for _ in $(seq 1 30); do
@@ -80,10 +66,10 @@ if ! docker exec hongmeng-cms-postgres psql -U hongmeng_cms -d postgres -tAc \
 fi
 
 for _ in $(seq 1 30); do
-  curl -fsS "$S3_ENDPOINT/minio/health/live" >/dev/null && break
+  curl -fsS "$S3_ENDPOINT/" >/dev/null && break
   sleep 1
 done
-curl -fsS "$S3_ENDPOINT/minio/health/live" >/dev/null
+curl -fsS "$S3_ENDPOINT/" >/dev/null
 
 cd "$ROOT_DIR"
 node --input-type=module <<'NODE'
@@ -98,10 +84,15 @@ const bucket = process.env.S3_BUCKET;
 try { await client.send(new CreateBucketCommand({ Bucket: bucket })); } catch (error) {
   if (!['BucketAlreadyOwnedByYou', 'BucketAlreadyExists'].includes(error.name)) throw error;
 }
-await client.send(new PutBucketPolicyCommand({
-  Bucket: bucket,
-  Policy: JSON.stringify({ Version: '2012-10-17', Statement: [{ Sid: 'PublicReadSiteMedia', Effect: 'Allow', Principal: '*', Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${bucket}/*`] }] })
-}));
+// SeaweedFS 默认匿名可读，策略写不进去也不算错。
+try {
+  await client.send(new PutBucketPolicyCommand({
+    Bucket: bucket,
+    Policy: JSON.stringify({ Version: '2012-10-17', Statement: [{ Sid: 'PublicReadSiteMedia', Effect: 'Allow', Principal: '*', Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${bucket}/*`] }] })
+  }));
+} catch (error) {
+  console.warn(`对象存储策略未写入（${error.name}），匿名读通常仍然可用。`);
+}
 NODE
 
 echo "本地 PostgreSQL 和对象存储已就绪。"
