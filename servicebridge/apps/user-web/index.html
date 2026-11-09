@@ -4,39 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="customer-service-api-base" content="">
-    <meta name="description" content="点击进入在线客服，有问题随时咨询，我们会尽快为您处理。">
+    <meta name="description" content="宏盟机械在线客服，售前选型、配件适配与售后问题都可以直接咨询。">
     <meta property="og:type" content="website">
     <meta property="og:title" content="在线客服">
-    <meta property="og:description" content="点击进入在线客服，有问题随时咨询，我们会尽快为您处理。">
-    <meta property="og:image" content="./assets/001.jpg">
+    <meta property="og:description" content="宏盟机械在线客服，售前选型、配件适配与售后问题都可以直接咨询。">
     <meta property="og:url" content="./index.html">
     <meta property="og:site_name" content="在线客服">
     <meta itemprop="name" content="在线客服">
-    <meta itemprop="description" content="点击进入在线客服，有问题随时咨询，我们会尽快为您处理。">
-    <meta itemprop="image" content="./assets/001.jpg">
-    <link rel="image_src" href="./assets/001.jpg">
+    <meta itemprop="description" content="宏盟机械在线客服，售前选型、配件适配与售后问题都可以直接咨询。">
     <title>在线客服</title>
     <script>
         (() => {
             if (new URLSearchParams(window.location.search).get('embed') === '1') {
                 document.documentElement.classList.add('embed-mode');
             }
-        })();
-    </script>
-    <script>
-        (() => {
-            const shareImageURL = new URL('./assets/001.jpg', window.location.href).href;
-            const sharePageURL = window.location.href.split('#')[0];
-            const metas = [
-                ['meta[property="og:image"]', 'content', shareImageURL],
-                ['meta[itemprop="image"]', 'content', shareImageURL],
-                ['meta[property="og:url"]', 'content', sharePageURL],
-                ['link[rel="image_src"]', 'href', shareImageURL]
-            ];
-            metas.forEach(([selector, attr, value]) => {
-                const el = document.querySelector(selector);
-                if (el) el.setAttribute(attr, value);
-            });
         })();
     </script>
     <link href="./assets/tailwind.css" rel="stylesheet">
@@ -87,15 +68,6 @@
             max-height: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
-        }
-
-        html.embed-mode #entry-view {
-            border-radius: 0;
-            background: var(--wc-bg);
-        }
-
-        html.embed-mode #entry-view .entry-view-inner {
-            display: none;
         }
 
         /* === B13：阿拉伯语 RTL 适配（气泡三角、边距、横幅） === */
@@ -455,50 +427,12 @@
         .border-wc { border-color: var(--wc-border); }
         .text-wc-main { color: var(--wc-text-main); }
 
-        .entry-view-inner {
-            width: 100%;
-            max-width: 360px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-        }
-
-        .entry-hero {
-            width: min(88vw, 340px);
-            max-height: 42vh;
-            object-fit: contain;
-            filter: drop-shadow(0 18px 30px rgba(17, 17, 17, 0.12));
-            transform-origin: center center;
-            animation: entryHeroFloat 5s ease-in-out infinite;
-            user-select: none;
-            -webkit-user-drag: none;
-        }
-
-        @keyframes entryHeroFloat {
-            0%, 100% {
-                transform: translateY(0) scale(1);
-            }
-            50% {
-                transform: translateY(-10px) scale(1.02);
-            }
-        }
     </style>
 </head>
 <body class="flex items-center justify-center h-screen w-screen relative">
 
     <!-- PC端模拟手机外壳，移动端全屏 -->
     <div id="app-container" class="relative w-full h-full md:w-[400px] md:h-[800px] md:max-h-[95vh] md:rounded-xl md:shadow-2xl overflow-hidden bg-wc-bg flex flex-col">
-        <div id="entry-view" class="absolute inset-0 z-30 bg-white flex items-center justify-center px-8">
-            <div class="entry-view-inner">
-                <img src="./assets/001.jpg" alt="咨询客服入口图片" data-i18n-alt="entryImageAlt" class="entry-hero">
-                <button id="entry-btn" class="w-full max-w-[220px] bg-[#07c160] text-white py-3 rounded-lg text-[17px] font-medium active:bg-[#06ad56]" onclick="openConsultation()" data-i18n="consultService">
-                    咨询客服
-                </button>
-            </div>
-        </div>
-
         <div id="chat-shell" class="w-full h-full flex flex-col hidden">
             <!-- 顶部导航栏 -->
             <header class="h-[50px] bg-wc-header flex items-center justify-between px-3 shrink-0 relative z-20 border-b border-wc">
@@ -762,7 +696,6 @@
             pendingSends: new Map(),
             soundEnabled: true,
             activePanel: null, // 'emoji', 'more', or null
-            entryVisible: true,
             startingConversation: false,
             pendingReturnToEntry: false,
             unreadCount: 0,
@@ -806,8 +739,6 @@
         };
 
         const DOM = {
-            entryView: document.getElementById('entry-view'),
-            entryBtn: document.getElementById('entry-btn'),
             chatShell: document.getElementById('chat-shell'),
             chatList: document.getElementById('chat-list'),
             input: document.getElementById('chat-input'),
@@ -873,17 +804,7 @@
             return apiUrl.origin;
         }
 
-        function showEntryView() {
-            State.entryVisible = true;
-            DOM.chatShell.classList.add('hidden');
-            DOM.entryView.classList.remove('hidden');
-            DOM.entryView.classList.add('flex');
-        }
-
         function showChatView() {
-            State.entryVisible = false;
-            DOM.entryView.classList.remove('flex');
-            DOM.entryView.classList.add('hidden');
             DOM.chatShell.classList.remove('hidden');
         }
 
@@ -939,7 +860,7 @@
         }
 
         function saveVisitorSession() {
-            if (!State.visitorToken || !State.conversationId || State.entryVisible || !ACTIVE_SESSION_TYPES.has(State.sessionType)) {
+            if (!State.visitorToken || !State.conversationId || !ACTIVE_SESSION_TYPES.has(State.sessionType)) {
                 return;
             }
             const payload = {
@@ -1383,15 +1304,8 @@
             hideEvalImmediately();
             updateSessionState('AI');
             State.startingConversation = false;
-            DOM.entryBtn.disabled = false;
-            DOM.entryBtn.textContent = t('consultService');
-            if (isEmbedMode()) {
-                showChatView();
-                if (message) appendSystemMessage(message);
-                return;
-            }
-            showEntryView();
-            if (message) showToast(message);
+            showChatView();
+            if (message) appendSystemMessage(message);
         }
 
         function promptForRatingOrReturn(message) {
@@ -1410,21 +1324,15 @@
         async function openConsultation() {
             if (State.startingConversation) return;
             State.startingConversation = true;
-            DOM.entryBtn.disabled = true;
-            DOM.entryBtn.textContent = t('connecting');
             clearVisitorSession();
             resetConversationRuntime();
             resetChatView();
             updateSessionState('AI');
-            if (isEmbedMode()) {
-                showChatView();
-            }
+            // 已无入口屏：先把对话界面显示出来，连不上时也有内容可看。
+            showChatView();
             const ok = await initConversation();
             State.startingConversation = false;
-            DOM.entryBtn.disabled = false;
-            DOM.entryBtn.textContent = t('consultService');
             if (!ok) return;
-            showChatView();
             saveVisitorSession();
             scrollToBottom();
         }
@@ -1447,8 +1355,6 @@
             const restoredConversation = await syncVisitorLangToServer();
             if (restoredConversation) applyAssignedAgent(restoredConversation);
             State.startingConversation = false;
-            DOM.entryBtn.disabled = false;
-            DOM.entryBtn.textContent = t('consultService');
             showChatView();
             updateSessionState(saved.sessionType || 'AI');
             let syncState = null;
@@ -1495,11 +1401,7 @@
                 const restored = await restoreConsultation(savedSession);
                 if (restored) return;
             }
-            if (isEmbedMode()) {
-                await openConsultation();
-                return;
-            }
-            returnToEntry();
+            await openConsultation();
         }
 
         // === 核心 UI 逻辑 ===
@@ -2005,13 +1907,7 @@
             hideEvalImmediately();
             updateSessionState('AI');
             State.startingConversation = false;
-            DOM.entryBtn.disabled = false;
-            DOM.entryBtn.textContent = t('consultService');
-            if (isEmbedMode()) {
-                await openConsultation();
-                return;
-            }
-            showEntryView();
+            await openConsultation();
         };
 
         function triggerAction(action) {
@@ -2109,6 +2005,7 @@
             } catch (err) {
                 console.error(err);
                 showToast(t("connectSystemFailed"), 3000);
+                appendSystemMessage(t("connectSystemFailed"));
                 return false;
             }
         }
@@ -2203,7 +2100,7 @@
                 State.connected = false;
                 // B15：断线时把待回执的消息标记为失败，允许手动重发。
                 failAllPendingSends();
-                if (!State.entryVisible && State.conversationId && State.sessionType !== 'ENDED') {
+                if (State.conversationId && State.sessionType !== 'ENDED') {
                     setTimeout(connectSocket, 2000);
                 }
             };

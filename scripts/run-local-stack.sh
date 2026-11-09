@@ -160,11 +160,14 @@ start_service servicebridge-user-web python3 -m http.server ${SERVICEBRIDGE_USER
 
 printf '[hongmeng] local stack launched. Logs are in %s\n' "$LOG_DIR"
 printf '[hongmeng] engine store: %s\n' "$STORE_DRIVER"
-printf '[hongmeng] frontend: http://127.0.0.1:4331/\n'
-printf '[hongmeng] admin login: http://127.0.0.1:1338/site-admin/login\n'
-printf '[hongmeng] site admin: http://127.0.0.1:1338/site-admin/\n'
+printf '[hongmeng] frontend: %s/\n' "$PUBLIC_SITE_URL"
+printf '[hongmeng] admin login: %s/site-admin/login\n' "$PUBLIC_ADMIN_URL"
+printf '[hongmeng] site admin: %s/site-admin/\n' "$PUBLIC_ADMIN_URL"
 printf '[hongmeng] admin dev (HMR): npm run dev:admin-web  # http://127.0.0.1:5176/site-admin/\n'
-printf '[hongmeng] servicebridge user web: http://127.0.0.1:5175/?embed=1\n'
+# 独立打开访客端要带 api_base，否则它会按惯例猜 8080 端口。
+printf '[hongmeng] servicebridge user web: %s/?api_base=%s\n' \
+  "$PUBLIC_SERVICEBRIDGE_URL" "${PUBLIC_SERVICEBRIDGE_API_URL:-http://127.0.0.1:8081}"
+printf '[hongmeng] servicebridge api: %s/healthz\n' "${PUBLIC_SERVICEBRIDGE_API_URL:-http://127.0.0.1:8081}"
 
 # Keep this supervisor alive; otherwise EXIT would stop every service immediately.
 wait "${pids[@]}"
