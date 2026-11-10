@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { CONSENT_MAX_AGE_MS, readConsentCookie } from './consent-cookie.mjs';
+import { sanitizeContentRichText } from './html-sanitize.mjs';
 
 const STATUSES = new Set(['pending', 'confirmed', 'paid', 'fulfilling', 'shipped', 'completed', 'cancelled']);
 const PAYMENT_PROVIDERS = new Set(['manual', 'stripe', 'paypal']);
@@ -1106,7 +1107,8 @@ export function createCommerceRouter({ requestRebuild, store, bodyJson, json, ve
       }
       if (pathname === '/site-admin-api/commerce/storefront' && req.method === 'PATCH') {
         const body = await bodyJson(req, 60000);
-        const content = body && typeof body === 'object' && body.content && typeof body.content === 'object' && !Array.isArray(body.content) ? body.content : {};
+        // 与 CMS 的内容保存走同一套消毒：正文类字段里不允许留脚本或事件属性。
+        const content = sanitizeContentRichText(body && typeof body === 'object' && body.content && typeof body.content === 'object' && !Array.isArray(body.content) ? body.content : {});
         const checkMedia = (value, key = '') => {
           if (Array.isArray(value)) return value.forEach((item) => checkMedia(item, key));
           if (value && typeof value === 'object') return Object.entries(value).forEach(([childKey, childValue]) => checkMedia(childValue, childKey));

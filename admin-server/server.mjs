@@ -1961,8 +1961,11 @@ const server = http.createServer(async (req, res) => {
     }
     send(res, 404, 'not found');
   } catch (error) {
-    console.error(error);
-    json(res, 500, { error: { message: error.message || 'server error' } });
+    // bodyJson 等中间层会带 status（400 畸形 JSON / 413 体积超限）：
+    // 客户端错误不该报成 500，否则 5xx 告警会被正常流量打爆。
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 600 ? Number(error.status) : 500;
+    if (status >= 500) console.error(error);
+    json(res, status, { error: { message: error.message || 'server error' } });
   }
 });
 

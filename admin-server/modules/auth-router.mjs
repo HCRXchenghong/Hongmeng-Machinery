@@ -109,7 +109,7 @@ export function createAuthRouter({
         json(res, 409, { error: { message: '管理员账号已存在，请直接登录。' } });
         return true;
       }
-      const body = await bodyJson(req);
+      const body = await bodyJson(req, 8 * 1024);
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -127,7 +127,7 @@ export function createAuthRouter({
       return true;
     }
     if (pathname === '/site-admin-auth/setup/verify' && req.method === 'POST') {
-      const body = await bodyJson(req);
+      const body = await bodyJson(req, 8 * 1024);
       const challenge = pendingSetups.get(body.challengeId);
       if (!challenge || challenge.exp < Date.now()) {
         json(res, 400, { error: { message: '绑定已过期，请重新开始。' } });
@@ -155,7 +155,7 @@ export function createAuthRouter({
       return true;
     }
     if (pathname === '/site-admin-auth/login/start' && req.method === 'POST') {
-      const body = await bodyJson(req);
+      const body = await bodyJson(req, 8 * 1024);
       const users = await readUsers();
       const email = String(body.email || '').trim().toLowerCase();
       const locked = lockedOut(req, email);
@@ -178,7 +178,7 @@ export function createAuthRouter({
       return true;
     }
     if (pathname === '/site-admin-auth/login/verify' && req.method === 'POST') {
-      const body = await bodyJson(req);
+      const body = await bodyJson(req, 8 * 1024);
       const challenge = pendingLogins.get(body.challengeId);
       if (!challenge || challenge.exp < Date.now()) {
         json(res, 400, { error: { message: '登录验证已过期，请重新登录。' } });
