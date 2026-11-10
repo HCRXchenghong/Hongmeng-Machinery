@@ -269,7 +269,7 @@ func buildAlertEmail(from, to string, payload AlertPayload) []byte {
 func alertTitle(payload AlertPayload) string {
 	title := strings.TrimSpace(payload.Title)
 	if title == "" {
-		title = "Astreva 客服提醒"
+		title = "宏盟机械 客服提醒"
 	}
 	return title
 }

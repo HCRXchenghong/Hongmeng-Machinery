@@ -594,7 +594,7 @@ func handleAlertChannelTest(service *app.Service, w http.ResponseWriter, r *http
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
 	payload := notify.AlertPayload{
-		Title: "Astreva 提醒渠道测试",
+		Title: "宏盟机械 提醒渠道测试",
 		Body:  "这是一条测试消息，收到即表示渠道配置可用。",
 	}
 	if err := service.Notifier().SendAlertChannels(ctx, []domain.AgentAlertChannel{channel}, payload); err != nil {

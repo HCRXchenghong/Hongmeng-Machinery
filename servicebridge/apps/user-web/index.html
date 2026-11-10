@@ -731,10 +731,11 @@
             activeAudioButton: null,
             typingTimer: null,
             typingSender: '',
+            // 默认留空：没在后台配置联系方式时不能给访客一个假号码。
             contacts: {
-                telephone: '400-123-4567',
-                whatsapp: '+86 400 888 8888',
-                telegram: '@AstrevaSupport'
+                telephone: '',
+                whatsapp: '',
+                telegram: ''
             }
         };
 
@@ -935,7 +936,7 @@
         }
 
         // === 主站一级存储桥 ===
-        // 聊天窗口是跨站 iframe（api.astreva.ltd），其 localStorage 会被 Safari ITP /
+        // 聊天窗口是跨站 iframe（独立客服域名），其 localStorage 会被 Safari ITP /
         // 隐私模式等第三方存储拦截，导致刷新后丢会话。这里通过 postMessage 请主站
         // 页面（第一方）代为保存访客会话令牌，刷新后再向主站取回，即可恢复会话与历史。
         function hostTargetOrigin() {
@@ -1944,17 +1945,20 @@
                 showToast(t('humanRequested'));
             } 
             else if (action === 'phone') {
-				const telephone = State.contacts.telephone;
+				const telephone = String(State.contacts.telephone || '').trim();
+                if (!telephone) { appendSystemMessage(t('contactUnavailable')); return; }
                 appendSystemMessage(t('supportPhonePrefix') + `<a href="tel:${escapeHTML(telephone)}" class="text-blue-500">${escapeHTML(telephone)}</a> ` + t('tapToDial'));
                 if (State.connected) sendSocketMessage("电话");
             }
             else if (action === 'whatsapp') {
-                const whatsapp = State.contacts.whatsapp;
+                const whatsapp = String(State.contacts.whatsapp || '').trim();
+                if (!whatsapp) { appendSystemMessage(t('contactUnavailable')); return; }
                 appendSystemMessage(t('officialWhatsappPrefix') + `<span class="text-wc-user font-bold select-all">${escapeHTML(whatsapp)}</span> ` + t('longPressCopy'));
                 if (State.connected) sendSocketMessage("WhatsApp");
             }
             else if (action === 'telegram') {
-                const telegram = State.contacts.telegram;
+                const telegram = String(State.contacts.telegram || '').trim();
+                if (!telegram) { appendSystemMessage(t('contactUnavailable')); return; }
                 appendSystemMessage(t('officialTelegramPrefix') + `<span class="text-wc-user font-bold select-all">${escapeHTML(telegram)}</span> ` + t('longPressCopy'));
                 if (State.connected) sendSocketMessage("Telegram");
             }
