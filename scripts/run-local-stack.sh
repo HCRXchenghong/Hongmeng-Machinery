@@ -78,6 +78,9 @@ export PUBLIC_SERVICEBRIDGE_URL="${PUBLIC_SERVICEBRIDGE_URL:-http://127.0.0.1:51
 export SERVICEBRIDGE_CORS_ALLOWED_ORIGINS="${SERVICEBRIDGE_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:4331,http://127.0.0.1:5175}"
 export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-$SERVICEBRIDGE_CORS_ALLOWED_ORIGINS}"
 export FRAME_ANCESTORS="${FRAME_ANCESTORS:-http://127.0.0.1:4331}"
+# 重建 webhook 与后台共用同一个密钥：本地也走真实鉴权，避免「本地不验签、上线才发现」。
+export REBUILD_WEBHOOK_SECRET="${REBUILD_WEBHOOK_SECRET:-local-dev-$(openssl rand -hex 8)}"
+export FRONTEND_REBUILD_WEBHOOK_URL="${FRONTEND_REBUILD_WEBHOOK_URL:-http://127.0.0.1:${REBUILD_WEBHOOK_PORT:-8788}/rebuild}"
 
 # 引擎默认走 PostgreSQL：AI 供应商、能力绑定、故障转移候选链、会话/消息都必须持久化，
 # 内存驱动一重启就全丢（历史上本地栈用 `env -u DATABASE_URL` 强制内存，这里已修正）。

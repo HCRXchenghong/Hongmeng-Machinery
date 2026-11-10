@@ -16,6 +16,9 @@ if (existsSync('.env')) {
 
 const port = Number(process.env.REBUILD_WEBHOOK_PORT || 8787);
 const secret = process.env.REBUILD_WEBHOOK_SECRET || '';
+// 没有密钥就等于没鉴权：只允许本机访问，别让内网任何容器都能触发重建。
+const insecure = !secret;
+const listenHost = insecure ? '127.0.0.1' : (process.env.REBUILD_WEBHOOK_HOST || '0.0.0.0');
 let running = false;
 let queued = false;
 let queuedSource = 'current';
@@ -137,7 +140,8 @@ createServer(async (req, res) => {
   }
   void runBuild(source, previewContent);
   json(res, 202, { ok: true, running, queued, lastBuild });
-}).listen(port, () => {
-  console.log(`Rebuild webhook listening on http://127.0.0.1:${port}/rebuild`);
+}).listen(port, listenHost, () => {
+  if (insecure) console.warn('[rebuild] 未设置 REBUILD_WEBHOOK_SECRET：只监听 127.0.0.1，等同无鉴权，勿用于生产。');
+  console.log(`Rebuild webhook listening on http://${listenHost}:${port}/rebuild`);
   console.log(`Health check available at http://127.0.0.1:${port}/healthz`);
 });
