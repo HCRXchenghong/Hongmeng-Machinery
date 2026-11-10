@@ -214,6 +214,10 @@ export function createSystemRouter({
 
   async function handle(req, res, pathname, url) {
     if (!pathname.startsWith('/site-admin-api/system/')) return false;
+    // 邮件设置与邮件日志由 modules/mailer.mjs 的 admin router 负责；
+    // 这里必须先放行，否则会被下面的兜底 404 吃掉（曾导致后台存不了 SMTP）。
+    if (pathname === '/site-admin-api/system/mail-log') return false;
+    if (pathname === '/site-admin-api/system/mail-settings' || pathname.startsWith('/site-admin-api/system/mail-settings/')) return false;
     if (!verifySession(req)) {
       json(res, 401, { error: { message: '请先登录。' } });
       return true;

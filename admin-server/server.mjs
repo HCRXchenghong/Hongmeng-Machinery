@@ -1760,7 +1760,7 @@ const handleCustomer = createCustomerRouter({ store: platformStore, bodyJson, js
 
 async function handleAdminApi(req, res, pathname) {
   const adminUrl = new URL(req.url || '/', PUBLIC_ORIGIN);
-  for (const handler of [handleCustomer, handleCommerce, leadsModule.handle, handleContent, handleWebsiteTranslation, handleWebsiteSeo, handleMedia, handlePublish, handleMediaRuntimeSettings, analyticsModule.handleAdmin, systemModule.handle, handleMailAdmin.handle]) {
+  for (const handler of [handleCustomer, handleCommerce, leadsModule.handle, handleContent, handleWebsiteTranslation, handleWebsiteSeo, handleMedia, handlePublish, handleMediaRuntimeSettings, analyticsModule.handleAdmin, handleMailAdmin.handle, systemModule.handle]) {
     if (await handler(req, res, pathname, adminUrl)) return true;
   }
   if (pathname.startsWith('/site-admin-api/servicebridge/')) {
