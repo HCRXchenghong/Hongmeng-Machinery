@@ -14,6 +14,10 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		X-Frame-Options "SAMEORIGIN"
+		# Astro/React 的 hydration 脚本是内联的，没有 nonce，所以 script 必须允许 unsafe-inline；
+		# 其余指令按实际用到的资源收紧（图片/视频允许 https、iframe 只放客服与视频站）。
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https://{$ADMIN_DOMAIN} https://{$SERVICE_DOMAIN}; frame-src 'self' https://{$SERVICE_DOMAIN} https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
 
 	# 咨询单由官网域名直连后台，避免跨域与预检。

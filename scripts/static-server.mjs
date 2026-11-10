@@ -31,6 +31,37 @@ const mimeTypes = {
   '.woff2': 'font/woff2'
 };
 
+
+/**
+ * 与生产 Caddy 对齐的安全响应头。
+ * 本地静态服务器也发一遍，才能在开发机上验证 CSP 不会打断页面。
+ */
+const serviceOrigin = (process.env.PUBLIC_SERVICEBRIDGE_URL || 'http://127.0.0.1:5175').replace(/\/$/, '');
+function securityHeaders() {
+  const csp = [
+    "default-src 'self'",
+    // Astro/React 的内联 hydration 脚本没有 nonce，只能用 unsafe-inline。
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' ${adminOrigin} ${serviceOrigin}`,
+    `frame-src 'self' ${serviceOrigin} https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'"
+  ].join('; ');
+  return {
+    'Content-Security-Policy': csp,
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'X-Frame-Options': 'SAMEORIGIN'
+  };
+}
+
 function safePath(urlPath) {
   const decoded = decodeURIComponent(urlPath.split('?')[0]);
   const normalized = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
@@ -121,7 +152,8 @@ http.createServer(async (req, res) => {
       if (notFoundPage) {
         res.writeHead(404, {
           'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-store'
+          'Cache-Control': 'no-store',
+          ...securityHeaders()
         });
         createReadStream(notFoundPage).pipe(res);
         return;
@@ -138,7 +170,8 @@ http.createServer(async (req, res) => {
       'Content-Type': mimeTypes[ext] || 'application/octet-stream',
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       Pragma: 'no-cache',
-      Expires: '0'
+      Expires: '0',
+      ...securityHeaders()
     });
     createReadStream(file).pipe(res);
   } catch (error) {

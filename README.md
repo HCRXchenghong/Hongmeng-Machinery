@@ -167,3 +167,5 @@ docker compose -f deployments/ubuntu/docker-compose.ubuntu.yml \
 **内容发布**：在「官网 → 页面内容 / SEO 设置」保存后会触发前台重建（约 30–60 秒）。英文与阿拉伯语走翻译层，改完中文需在「官网 → 多语言内容」核对或重新翻译。
 
 **监控**：`--monitoring` 启用 Prometheus 与 Grafana（仅回环监听），规则与面板在 `deployments/ubuntu/monitoring/`。
+
+**安全响应头**：Caddy 给官网与后台都加了 HSTS / nosniff / Referrer-Policy / Permissions-Policy / X-Frame-Options；官网另有一条 CSP（script/style 允许 inline 以兼容 Astro 的内联 hydration，iframe 只放客服与视频站）。本地 `scripts/static-server.mjs` 发同一套头，便于在开发机验证 CSP 不会打断页面。
