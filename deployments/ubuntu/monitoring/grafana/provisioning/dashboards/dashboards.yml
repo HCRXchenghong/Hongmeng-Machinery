@@ -2,9 +2,9 @@
 apiVersion: 1
 
 providers:
-  - name: astreva
+  - name: hongmeng
     orgId: 1
-    folder: ASTREVA
+    folder: 宏盟机械
     type: file
     disableDeletion: true
     allowUiUpdates: false
