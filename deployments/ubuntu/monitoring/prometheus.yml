@@ -75,13 +75,13 @@ scrape_configs:
   #     - target_label: __address__
   #       replacement: blackbox-exporter:9115
 
-  # 可选：宿主机磁盘/容器指标（“磁盘空间”“容器重启”告警的推荐做法）。
-  # 需要 node_exporter / cAdvisor；未部署时 alerts.yml 中对应规则不会产生数据。
-  #
-  # - job_name: node
-  #   static_configs:
-  #     - targets: ["node-exporter:9100"]
-  #
-  # - job_name: cadvisor
-  #   static_configs:
-  #     - targets: ["cadvisor:8080"]
+  # 宿主机磁盘指标与备份新鲜度（node_exporter 的 textfile collector）。
+  # 磁盘空间、备份过期两类告警依赖它，compose 的 monitoring profile 已带该服务。
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # 容器重启检测。cAdvisor 在部分内核上采集不全时，这条告警会沉默而不是误报。
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]

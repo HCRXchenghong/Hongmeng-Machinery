@@ -361,6 +361,43 @@ services:
     networks:
       - hongmeng
 
+  # 宿主机磁盘与备份新鲜度指标。alerts.yml 里的磁盘空间、备份过期两类规则依赖它；
+  # 没有这个服务时这些规则不会产生任何数据，等于静默失效。
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+    volumes:
+      - /:/host:ro,rslave
+      - ./data/node-exporter/textfile:/textfile:ro
+    pid: host
+    ports:
+      - "${NODE_EXPORTER_HOST_PORT:-127.0.0.1:9100}:9100"
+    networks:
+      - hongmeng
+
+  # 容器重启检测（AstrevaContainerRestarted）。只读挂载 /var/run 与 /sys，权限尽量收紧。
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    privileged: false
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "${CADVISOR_HOST_PORT:-127.0.0.1:8080}:8080"
+    networks:
+      - hongmeng
+
   grafana:
     image: grafana/grafana:11.1.0
     profiles: ["monitoring"]

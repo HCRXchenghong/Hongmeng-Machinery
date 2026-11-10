@@ -170,6 +170,6 @@ docker compose -f deployments/ubuntu/docker-compose.ubuntu.yml \
 
 **内容发布**：在「官网 → 页面内容 / SEO 设置」保存后会触发前台重建（约 30–60 秒）。英文与阿拉伯语走翻译层，改完中文需在「官网 → 多语言内容」核对或重新翻译。
 
-**监控**：`--monitoring` 启用 Prometheus 与 Grafana（仅回环监听），规则与面板在 `deployments/ubuntu/monitoring/`。
+**监控**：`--monitoring` 启用 Prometheus、Grafana、node_exporter 与 cAdvisor（全部只监听回环），规则与面板在 `deployments/ubuntu/monitoring/`。node_exporter 负责磁盘空间与备份新鲜度指标，备份 cron 会把 `astreva_backup.prom` 写进 `deployments/ubuntu/data/node-exporter/textfile/`，所以「备份过期」告警真的有数据可判。`probe_success`（外网 HTTP 拨测）仍需自备 blackbox_exporter，未部署时对应规则保持沉默而不是误报。
 
 **安全响应头**：Caddy 给官网与后台都加了 HSTS / nosniff / Referrer-Policy / Permissions-Policy / X-Frame-Options；官网另有一条 CSP（script/style 允许 inline 以兼容 Astro 的内联 hydration，iframe 只放客服与视频站）。本地 `scripts/static-server.mjs` 发同一套头，便于在开发机验证 CSP 不会打断页面。

@@ -888,7 +888,10 @@ setup_backup_cron() {
   [[ -x "$script" ]] || return 0
   command -v crontab >/dev/null 2>&1 || { warn "无 crontab，跳过每日备份计划"; return 0; }
   mkdir -p "$STATE_DIR/backups"
-  line="0 2 * * * ASTREVA_BACKUP_DIR=$STATE_DIR/backups $script >/dev/null 2>&1"
+  # 备份成功后顺带写 node_exporter 的 textfile 指标，AstrevaBackupStale 才有数据可判。
+  local textfile_dir="$INSTALL_DIR/deployments/ubuntu/data/node-exporter/textfile"
+  mkdir -p "$textfile_dir"
+  line="0 2 * * * ASTREVA_BACKUP_DIR=$STATE_DIR/backups ASTREVA_BACKUP_TEXTFILE=$textfile_dir/astreva_backup.prom $script >/dev/null 2>&1"
   (crontab -l 2>/dev/null | grep -v 'backup-production.sh' || true; echo "$line") | crontab -
   ok "已配置每日 02:00 数据库备份"
 }
