@@ -1079,11 +1079,21 @@ export function createCommerceRouter({ requestRebuild, store, bodyJson, json, ve
         json(res, 200, { data: result.rows[0] || { privacy_policy: '', cookie_policy: '', terms_policy: '', shipping_policy: '', returns_policy: '' } }); return true;
       }
       if (pathname === '/site-admin-api/commerce/policies' && req.method === 'PATCH') {
-        const body = await bodyJson(req, 30000);
-        const policy = ['privacy_policy','cookie_policy','terms_policy','shipping_policy','returns_policy'].map((key) => clean(body[key], 12000));
-        const result = await store.query('UPDATE shop_settings SET privacy_policy=$1,cookie_policy=$2,terms_policy=$3,shipping_policy=$4,returns_policy=$5,updated_at=now() WHERE id=1 RETURNING privacy_policy,cookie_policy,terms_policy,shipping_policy,returns_policy', policy);
-        await auditEvent(req, 'commerce.policies.updated', 'shop-policies', '1', {});
+        const body = await bodyJson(req, 120000);
+        const fields = ['privacy_policy', 'cookie_policy', 'terms_policy', 'shipping_policy', 'returns_policy'];
+        // 只更新请求里出现的字段：以前是全量覆盖，客户端少传一项就会把其余政策清空。
+        const provided = fields.filter((key) => Object.hasOwn(body || {}, key));
+        if (provided.length === 0) throw failure('没有要保存的政策内容。', 400);
+        const values = provided.map((key) => clean(body[key], 12000));
+        const assignments = provided.map((key, index) => `${key}=$${index + 1}`).join(',');
+        const result = await store.query(
+          `UPDATE shop_settings SET ${assignments},updated_at=now() WHERE id=1 RETURNING privacy_policy,cookie_policy,terms_policy,shipping_policy,returns_policy`,
+          values
+        );
+        await auditEvent(req, 'commerce.policies.updated', 'shop-policies', '1', { fields: provided });
         scheduleStorefrontTranslation();
+        // 政策正文同样在构建期注入，改完要重建前台才会生效。
+        requestRebuild?.('shop-policies');
         json(res, 200, { data: result.rows[0] }); return true;
       }
       if (pathname === '/site-admin-api/commerce/storefront' && req.method === 'GET') {

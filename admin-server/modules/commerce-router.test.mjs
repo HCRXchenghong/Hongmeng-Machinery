@@ -174,6 +174,45 @@ test('公开政策接口返回后台可配置的五项政策', async () => {
   assert.deepEqual(replies[0].payload.data, { privacy_policy: 'privacy', cookie_policy: 'cookies', terms_policy: 'terms', shipping_policy: 'shipping', returns_policy: 'returns' });
 });
 
+test('政策保存只更新传入字段，不会把没传的政策清空', async () => {
+  const replies = [];
+  const statements = [];
+  const store = {
+    query: async (sql, params) => {
+      statements.push({ sql, params });
+      return { rows: [{ privacy_policy: 'privacy', cookie_policy: 'cookies', terms_policy: 'terms', shipping_policy: 'new shipping', returns_policy: 'returns' }] };
+    }
+  };
+  const router = createCommerceRouter({
+    store,
+    bodyJson: async () => ({ shipping_policy: 'new shipping' }),
+    json: (_res, status, payload) => replies.push({ status, payload }),
+    verifySession: () => true,
+    auditEvent: async () => {}
+  });
+  await router({ method: 'PATCH', url: '/site-admin-api/commerce/policies', headers: {} }, { setHeader() {} }, '/site-admin-api/commerce/policies');
+  assert.equal(replies[0].status, 200);
+  const update = statements.find((entry) => entry.sql.startsWith('UPDATE shop_settings'));
+  assert.ok(update, '应当执行更新');
+  assert.match(update.sql, /shipping_policy=\$1/);
+  assert.doesNotMatch(update.sql, /privacy_policy=/);
+  assert.doesNotMatch(update.sql, /returns_policy=/);
+  assert.deepEqual(update.params, ['new shipping']);
+});
+
+test('政策保存传空对象时拒绝，避免全表清空', async () => {
+  const replies = [];
+  const router = createCommerceRouter({
+    store: { query: async () => ({ rows: [{}] }) },
+    bodyJson: async () => ({}),
+    json: (_res, status, payload) => replies.push({ status, payload }),
+    verifySession: () => true,
+    auditEvent: async () => {}
+  });
+  await router({ method: 'PATCH', url: '/site-admin-api/commerce/policies', headers: {} }, { setHeader() {} }, '/site-admin-api/commerce/policies');
+  assert.equal(replies[0].status, 400);
+});
+
 test('后台在线支付状态要求同时配置商户凭据和 Webhook', async () => {
   const replies = [];
   const store = {
