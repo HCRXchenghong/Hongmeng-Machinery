@@ -883,6 +883,22 @@ retry_health() {
   return 1
 }
 
+write_monitoring_targets() {
+  ((ENABLE_MONITORING == 1)) || return 0
+  local dir="$INSTALL_DIR/deployments/ubuntu/monitoring/targets" file
+  mkdir -p "$dir"
+  file="$dir/http-targets.json"
+  cat > "$file" <<JSON
+[
+  {
+    "targets": ["https://$SITE_DOMAIN/", "https://$ADMIN_DOMAIN/", "https://$SERVICE_DOMAIN/"],
+    "labels": { "probe": "public" }
+  }
+]
+JSON
+  ok "已写入拨测目标：$SITE_DOMAIN / $ADMIN_DOMAIN / $SERVICE_DOMAIN"
+}
+
 setup_backup_cron() {
   local script="$INSTALL_DIR/scripts/backup-production.sh" line
   [[ -x "$script" ]] || return 0
@@ -982,6 +998,7 @@ main() {
   rebuild_and_up
 
   if retry_health; then
+    write_monitoring_targets
     setup_backup_cron
     print_summary
     exit 0

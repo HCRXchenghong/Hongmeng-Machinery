@@ -52,28 +52,24 @@ scrape_configs:
           service: admin-server
           env: production
 
-  # 可选：对外 HTTP(S) 可用性探测（“HTTP 不可用”告警的推荐做法）。
-  # 取消注释前需要先部署 blackbox_exporter（例如在 monitoring profile 内加一个服务，
-  # 监听 9115），并把下面的 targets 换成真实的站内地址。alerts.yml 里的
-  # AstrevaHttpEndpointUnavailable 规则依赖 probe_success，未部署时不会产生任何数据，
-  # 也就不会误报。
-  #
-  # - job_name: blackbox-http
-  #   metrics_path: /probe
-  #   params:
-  #     module: [http_2xx]
-  #   static_configs:
-  #     - targets:
-  #         - https://www.example.com/
-  #         - https://admin.example.com/
-  #         - https://service.example.com/
-  #   relabel_configs:
-  #     - source_labels: [__address__]
-  #       target_label: __param_target
-  #     - source_labels: [__param_target]
-  #       target_label: instance
-  #     - target_label: __address__
-  #       replacement: blackbox-exporter:9115
+  # 对外 HTTP(S) 可用性探测：blackbox_exporter 拨测三个域名。
+  # 目标列表由部署脚本写到 targets/http-targets.json（file_sd），改域名不用改这里。
+  # 仓库里默认是空数组 []：手工起监控时不会去拨测示例域名，避免假告警；
+  # 部署脚本 --monitoring 会写入真实域名。
+  - job_name: blackbox-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/*.json"]
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
   # 宿主机磁盘指标与备份新鲜度（node_exporter 的 textfile collector）。
   # 磁盘空间、备份过期两类告警依赖它，compose 的 monitoring profile 已带该服务。

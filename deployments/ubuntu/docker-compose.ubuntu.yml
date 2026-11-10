@@ -355,6 +355,7 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     ports:
       - "${PROMETHEUS_HOST_PORT:-127.0.0.1:9090}:9090"
@@ -376,6 +377,20 @@ services:
     pid: host
     ports:
       - "${NODE_EXPORTER_HOST_PORT:-127.0.0.1:9100}:9100"
+    networks:
+      - hongmeng
+
+  # 外网 HTTP(S) 拨测（AstrevaHttpEndpointUnavailable）。目标列表由 targets/http-targets.json 提供。
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    ports:
+      - "${BLACKBOX_HOST_PORT:-127.0.0.1:9115}:9115"
     networks:
       - hongmeng
 
