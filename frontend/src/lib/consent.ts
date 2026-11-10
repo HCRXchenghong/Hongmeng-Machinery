@@ -5,15 +5,15 @@
  * 版本或过期不匹配时视同没同意过（弹窗会重新出现），并把此前写入的可选标识清掉。
  */
 export const CONSENT_KEY = 'hongmeng_cookie_consent_v1';
-export const CONSENT_VERSION = 2;
+const CONSENT_VERSION = 2;
 /** 选择的有效期：到期后重新征求一次同意。 */
-export const CONSENT_TTL_DAYS = 180;
+const CONSENT_TTL_DAYS = 180;
 
 /** 可选标识（仅在同意 analytics 后写入）。 */
 export const VISITOR_KEY = 'astreva_visitor_id';
 export const SESSION_KEY = 'astreva_session_id';
 /** 客服会话恢复用；属于必要存储，但牵连访客画像，撤回时一并清掉。 */
-export const CHAT_SESSION_KEY = 'hongmeng_service_visitor_session_v1';
+const CHAT_SESSION_KEY = 'hongmeng_service_visitor_session_v1';
 
 export type Consent = {
   version: number;

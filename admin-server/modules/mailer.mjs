@@ -24,7 +24,7 @@ function envConfig() {
   };
 }
 
-export function maskPassword(password) {
+function maskPassword(password) {
   const value = String(password || '');
   if (!value) return '';
   return `${'•'.repeat(Math.min(value.length, 8))}${value.length > 8 ? `（${value.length} 位）` : ''}`;
@@ -108,7 +108,7 @@ function headerSafe(value) {
   return String(value || '').replace(/[\r\n]+/g, ' ').trim();
 }
 
-export function buildMessage({ from, to, subject, text, html }) {
+function buildMessage({ from, to, subject, text, html }) {
   const boundary = `hm-${crypto.randomBytes(12).toString('hex')}`;
   const date = new Date().toUTCString();
   const messageId = `<${crypto.randomUUID()}@${(from.email.split('@')[1] || 'localhost')}>`;

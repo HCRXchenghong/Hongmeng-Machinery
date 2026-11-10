@@ -88,15 +88,4 @@ export const saveTranslationSettings = (
   client.put(`${base}/settings`, payload).then((r) => r.data.data);
 
 /** 从上游拉取可用模型；apiKey 留空时后端回退已保存的 Key。 */
-export const fetchTranslationModels = (
-  payload: TranslationSettingsPayload
-): Promise<TranslationModelsResult> =>
-  client.post(`${base}/models`, payload).then((r) => r.data.data);
-
 /** 提交重译任务；不传 locale 时重译英语与阿拉伯语。 */
-export const requestRetranslation = (
-  locale?: TranslationLocale
-): Promise<{ accepted: boolean; locales: string[]; sourceRevision: number }> =>
-  client
-    .post(`${base}/retranslate`, locale ? { locale } : {})
-    .then((r) => r.data.data);

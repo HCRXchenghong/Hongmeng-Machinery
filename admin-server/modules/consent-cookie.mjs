@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
  * 下单接口据此认定同意确实发生过。签名带时间戳，12 小时过期，避免拿旧凭据反复下单。
  */
 
-export const CONSENT_COOKIE = 'hm_consent';
+const CONSENT_COOKIE = 'hm_consent';
 export const CONSENT_MAX_AGE_MS = 12 * 60 * 60_000;
 
 function secret() {

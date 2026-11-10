@@ -72,8 +72,3 @@ export function parseUserAgent(rawUserAgent) {
   return result;
 }
 
-export function describeDevice(parsed) {
-  if (!parsed) return '';
-  const parts = [parsed.browser, parsed.os].filter(Boolean);
-  return parts.join(' · ');
-}

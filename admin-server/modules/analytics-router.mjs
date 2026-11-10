@@ -689,6 +689,3 @@ export function detectDanger(pathname, userAgent = '') {
   return '';
 }
 
-export function buildEventId() {
-  return `evt_${crypto.randomUUID()}`;
-}

@@ -58,12 +58,6 @@ export function formatDuration(seconds: unknown): string {
 }
 
 /** 百分比（0–100，用于进度条）。 */
-export function ratioPercent(used: unknown, total: unknown): number {
-  const max = Number(total || 0);
-  if (!(max > 0)) return 0;
-  return Math.max(0, Math.min(100, (Number(used || 0) / max) * 100));
-}
-
 /** 媒体类型中文名。 */
 export function typeLabel(type?: string): string {
   return { image: '图片', video: '视频', file: '文件' }[String(type || '')] || String(type || '文件');
@@ -83,7 +77,7 @@ export function sourceLabel(sourceType?: string): string {
 }
 
 /** 扩展名 → MIME 推断（浏览器未给出 file.type 时使用）。 */
-export const EXTENSION_MIME: Record<string, string> = {
+const EXTENSION_MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',

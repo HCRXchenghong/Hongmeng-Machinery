@@ -25,18 +25,6 @@ func conversationReplyLang(conversation domain.Conversation) string {
 }
 
 // translationStatusFor 计算消息的翻译状态：skipped（无需翻译）/ done / failed。
-func translationStatusFor(sourceLang, targetLang string, translations map[string]string) string {
-	source := ai.NormalizeLang(sourceLang, ai.LangZh)
-	target := ai.NormalizeLang(targetLang, ai.LangZh)
-	if source == target {
-		return "skipped"
-	}
-	if text, ok := translations[target]; ok && strings.TrimSpace(text) != "" {
-		return "done"
-	}
-	return "failed"
-}
-
 // resolveConversationLanguage 处理一条访客消息带来的语言变化：
 //  1. 逐条识别消息语言（脚本 + 词表，含方言标记）；
 //  2. 解析"请用 X 语言回答我"这类显式指令，命中后整会话生效；

@@ -22,4 +22,3 @@ export const regexUrl = new RegExp(
   'i'
 );
 
-export default null;

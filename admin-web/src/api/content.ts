@@ -83,62 +83,19 @@ export interface SiteStatus {
 }
 
 /** GET /site-admin-api/bootstrap */
-export const fetchContentBootstrap = () =>
-  client.get<BootstrapPayload>('/site-admin-api/bootstrap').then((r) => r.data);
-
 /**
  * POST /site-admin-api/save
  * section 取值与旧编辑器一致：content / site / home / productCenter / support /
  * category / product / faq / staticPage / lead。
  */
-export const saveContentSection = (payload: {
-  section: string;
-  data: unknown;
-  revision?: number;
-}) =>
-  client
-    .post<BootstrapPayload>('/site-admin-api/save', payload)
-    .then((r) => r.data);
-
 /** GET /site-admin-api/status */
-export const fetchSiteStatus = () =>
-  client.get<{ data: SiteStatus }>('/site-admin-api/status').then((r) => r.data.data);
-
 /** POST /site-admin-api/publish?source=current|fallback */
-export const requestPublish = (source: 'current' | 'fallback' = 'current') =>
-  client
-    .post(`/site-admin-api/publish?source=${encodeURIComponent(source)}`)
-    .then((r) => r.data);
-
 /** POST /site-admin-api/preview —— 草稿预览构建，不落库、不影响线上 */
-export const requestDraftPreview = (content: unknown) =>
-  client
-    .post('/site-admin-api/preview', { content })
-    .then((r) => r.data);
-
 // ---------- 降级版本 ----------
 /** GET /site-admin-api/fallback-versions */
-export const fetchFallbackVersions = () =>
-  client.get('/site-admin-api/fallback-versions').then((r) => r.data.data);
-
 /** POST /site-admin-api/fallback-versions */
-export const createFallbackVersion = (name: string) =>
-  client
-    .post('/site-admin-api/fallback-versions', { name })
-    .then((r) => r.data.data);
-
 /** POST /site-admin-api/fallback-versions/{id}/activate */
-export const activateFallbackVersion = (id: string) =>
-  client
-    .post(`/site-admin-api/fallback-versions/${encodeURIComponent(id)}/activate`)
-    .then((r) => r.data.data);
-
 /** DELETE /site-admin-api/fallback-versions/{id} */
-export const deleteFallbackVersion = (id: string) =>
-  client
-    .delete(`/site-admin-api/fallback-versions/${encodeURIComponent(id)}`)
-    .then((r) => r.data.data);
-
 // ---------- 媒体库 ----------
 /** GET /site-admin-api/media */
 export const fetchMediaList = (params: {
@@ -165,30 +122,8 @@ export const uploadMedia = (file: File, fields: Record<string, string> = {}) => 
 };
 
 /** DELETE /site-admin-api/media/{id} */
-export const deleteMedia = (id: string) =>
-  client.delete(`/site-admin-api/media/${encodeURIComponent(id)}`).then((r) => r.data);
-
 /** GET /site-admin-api/media/{id}/references */
-export const fetchMediaReferences = (id: string) =>
-  client
-    .get<{ data: { references: string[] } }>(
-      `/site-admin-api/media/${encodeURIComponent(id)}/references`
-    )
-    .then((r) => r.data.data.references || []);
-
 // ---------- 客户咨询 ----------
 /** PATCH /site-admin-api/leads/{id}（可选的单条更新入口） */
-export const updateLead = (
-  id: string,
-  payload: { status?: string; priority?: string; internalNotes?: string }
-) =>
-  client
-    .patch(`/site-admin-api/leads/${encodeURIComponent(id)}`, payload)
-    .then((r) => r.data.data);
-
 // ---------- 审计（可选） ----------
 /** GET /site-admin-api/audit-events */
-export const fetchAuditEvents = (limit = 50) =>
-  client
-    .get('/site-admin-api/audit-events', { params: { limit } })
-    .then((r) => r.data.data || []);

@@ -109,7 +109,7 @@ const SCOPE_LABELS: Record<string, string> = API_SCOPES.reduce(
 );
 
 /** 未知 scope 原样回显，避免服务端新增取值时界面显示空白。 */
-export function scopeLabel(value: string): string {
+function scopeLabel(value: string): string {
   return SCOPE_LABELS[value] || value;
 }
 
@@ -144,7 +144,7 @@ function sameSet(left: string[], right: string[]): boolean {
 }
 
 /** 完全命中某个预置组合时返回该组合，否则返回 null。 */
-export function findPreset(scopes: unknown): ScopePreset | null {
+function findPreset(scopes: unknown): ScopePreset | null {
   if (isUnrestricted(scopes)) return null;
   const list = (scopes as string[]).filter((item) => typeof item === 'string');
   return SCOPE_PRESETS.find((preset) => sameSet(preset.scopes, list)) || null;

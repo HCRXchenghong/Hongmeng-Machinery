@@ -1013,17 +1013,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func nonEmpty(values ...string) string {
-	return firstNonEmpty(values...)
-}
-
-func positiveInt(value, fallback int) int {
-	if value <= 0 {
-		return fallback
-	}
-	return value
-}
-
 func errorEvent(err error) realtime.Event {
 	status := "error"
 	message := err.Error()
@@ -1084,20 +1073,6 @@ func upstreamBudgetFor(chain []domain.AISettings, floor time.Duration) time.Dura
 
 // translationBudgetFor 返回翻译调用的时间预算：至少 translationWindow，
 // 但不超过候选超时+5s（慢速上游如 MiMo 单次约 10s，写死 25s 会在故障转移时被掐断）。
-func translationBudgetFor(settings domain.AISettings) time.Duration {
-	budget := translationWindow
-	if settings.TimeoutSeconds > 0 {
-		candidate := time.Duration(settings.TimeoutSeconds)*time.Second + 5*time.Second
-		if candidate > budget {
-			budget = candidate
-		}
-	}
-	if budget > maxUpstreamCallTimeout {
-		budget = maxUpstreamCallTimeout
-	}
-	return budget
-}
-
 // defaultAITimeout 是未配置（或配置过小）时 AI 请求的默认超时。
 const defaultAITimeout = 20 * time.Second
 

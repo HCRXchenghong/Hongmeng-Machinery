@@ -35,7 +35,7 @@ import { createWebsiteTranslationRouter } from './modules/website-translation-ro
 import { createWebsiteSeoService } from './modules/website-seo-service.mjs';
 import { createAnalyticsRouter, createVisitorActivityForwarder, detectDanger } from './modules/analytics-router.mjs';
 import { createSystemRouter } from './modules/system-router.mjs';
-import { sanitizeContentRichText, sanitizeHtml } from './modules/html-sanitize.mjs';
+import { sanitizeContentRichText } from './modules/html-sanitize.mjs';
 import { createWebsiteSeoRouter } from './modules/website-seo-router.mjs';
 import { createCommerceRouter } from './modules/commerce-router.mjs';
 import { createMailer, createMailAdminRouter } from './modules/mailer.mjs';

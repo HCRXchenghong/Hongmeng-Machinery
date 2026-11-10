@@ -26,9 +26,6 @@ export const transferConversation = (id: string, agentId: string) =>
     bridge(`/api/admin/conversations/${encodeURIComponent(id)}/transfer`),
     { agent_id: agentId }
   );
-export const exportConversationsUrl = () =>
-  bridge('/api/admin/conversations/export.csv');
-
 // ---------- 客服账号 ----------
 export const createAgent = (payload: Record<string, unknown>) =>
   client.post(bridge('/api/admin/agents'), payload).then((r) => r.data);
@@ -144,10 +141,6 @@ export const fetchAiSettings = () =>
   client.get(bridge('/api/admin/ai-settings')).then((r) => r.data);
 export const updateAiSettings = (payload: Record<string, unknown>) =>
   client.patch(bridge('/api/admin/ai-settings'), payload).then((r) => r.data);
-export const fetchAiModels = (payload: Record<string, unknown>) =>
-  client
-    .post(bridge('/api/admin/ai-settings/models'), payload)
-    .then((r) => r.data);
 export const testAiReply = (input: string) =>
   client
     .post(bridge('/api/admin/ai-settings/test'), { input })
@@ -405,22 +398,11 @@ export const testSavedAlertChannel = (id: string) =>
 // ---------- 站点后台：bootstrap（含咨询单）/ 发布状态 ----------
 export const fetchBootstrap = () =>
   client.get('/site-admin-api/bootstrap').then((r) => r.data);
-export const saveSection = (payload: Record<string, unknown>) =>
-  client.post('/site-admin-api/save', payload).then((r) => r.data);
 export const updateLead = (id: string, payload: Record<string, unknown>) =>
   client
     .patch(`/site-admin-api/leads/${encodeURIComponent(id)}`, payload)
     .then((r) => r.data);
-export const fetchPublishStatus = () =>
-  client.get('/site-admin-api/status').then((r) => r.data);
-export const publishSite = (source = 'current') =>
-  client
-    .post(`/site-admin-api/publish?source=${encodeURIComponent(source)}`)
-    .then((r) => r.data);
 // 草稿预览：把编辑器当前内容构建到 /__preview/，不修改线上内容。
-export const requestPreview = (content: unknown) =>
-  client.post('/site-admin-api/preview', { content }).then((r) => r.data);
-
 // ---------- 官网访问统计（数据看板） ----------
 export const fetchAnalyticsOverview = (params: {
   tz: string;
@@ -428,11 +410,6 @@ export const fetchAnalyticsOverview = (params: {
 }) =>
   client
     .get('/site-admin-api/analytics/overview', { params })
-    .then((r) => r.data);
-
-export const fetchAnalyticsVisits = (params: Record<string, unknown> = {}) =>
-  client
-    .get('/site-admin-api/analytics/visits', { params })
     .then((r) => r.data);
 
 // ---------- 系统健康 & 系统日志 ----------

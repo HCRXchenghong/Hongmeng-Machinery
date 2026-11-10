@@ -89,9 +89,3 @@ func revokedTextForLang(lang string) string {
 }
 
 // localizedCopy 返回把内容替换为指定语言译文的消息副本（不修改原消息）。
-func localizedCopy(msg domain.Message, lang string) domain.Message {
-	if translated := strings.TrimSpace(msg.Translations[lang]); translated != "" && translated != msg.Content {
-		msg.Content = translated
-	}
-	return msg
-}

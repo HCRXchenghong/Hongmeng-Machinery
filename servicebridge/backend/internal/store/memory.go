@@ -2569,16 +2569,6 @@ func positiveInt(value, fallback int) int {
 	return value
 }
 
-func normalizeReplyType(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	switch value {
-	case "text", "image":
-		return value
-	default:
-		return ""
-	}
-}
-
 func maskAPIKey(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {

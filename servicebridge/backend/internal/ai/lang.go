@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"unicode"
 )
 
 // NormalizeOptionalLang 归一化语言标记，无法识别或为空时返回空字符串。
@@ -92,28 +91,6 @@ func LangName(lang string) string {
 	default:
 		return "Simplified Chinese"
 	}
-}
-
-func countRunesMatching(text string, match func(r rune) bool) int {
-	count := 0
-	for _, r := range text {
-		if match(r) {
-			count++
-		}
-	}
-	return count
-}
-
-func isCJK(r rune) bool {
-	return unicode.Is(unicode.Han, r)
-}
-
-func isArabic(r rune) bool {
-	return unicode.Is(unicode.Arabic, r)
-}
-
-func isLatinLetter(r rune) bool {
-	return unicode.IsLetter(r) && !isCJK(r) && !isArabic(r)
 }
 
 // DetectLang 兼容旧调用点：返回基础语言码。完整结果请用 DetectLanguage。

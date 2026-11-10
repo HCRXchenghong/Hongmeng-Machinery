@@ -276,16 +276,6 @@ export const updateMediaImage = (payload: Record<string, unknown>) =>
     .patch<{ data: MediaSettings }>('/site-admin-api/system/media-settings/image', payload)
     .then((r) => r.data);
 
-export const updateMediaAiImage = (payload: Record<string, unknown>) =>
-  client
-    .patch<{ data: MediaSettings }>('/site-admin-api/system/media-settings/ai-image', payload)
-    .then((r) => r.data);
-
-export const testMediaAiImage = (payload: Record<string, unknown>) =>
-  client
-    .post<{ data: AiCapability }>('/site-admin-api/system/media-settings/ai-image/test', payload)
-    .then((r) => r.data);
-
 // ---------- AI 生图 ----------
 export const fetchAiModels = (refresh = false) =>
   client

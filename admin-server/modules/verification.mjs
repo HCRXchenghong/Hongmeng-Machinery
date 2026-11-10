@@ -10,7 +10,7 @@ const RESEND_COOLDOWN_MS = 60_000;
 const MAX_PER_HOUR = 5;
 const MAX_ATTEMPTS = 5;
 
-export const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function hashCode(email, code, secret) {
   return crypto.createHmac('sha256', secret).update(`${email}:${code}`).digest('hex');
