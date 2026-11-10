@@ -20,6 +20,9 @@
       </section>
       <section v-if="section === 'orders'" class="section-page">
         <a-card :bordered="false"><template #extra><a-button @click="refresh">刷新</a-button></template>
+          <a-alert v-if="loadError" type="error" :title="loadError" closable @close="loadError = ''">
+            <template #action><a-button size="small" @click="refresh">重试</a-button></template>
+          </a-alert>
           <a-table :data="orders" :loading="loading" row-key="id" :pagination="{ pageSize: 12 }" :scroll="{ x: 1150 }">
             <template #columns>
               <a-table-column title="订单号" data-index="order_number" :width="210" />
@@ -400,6 +403,8 @@ const productOpen = ref(false);
 const orderOpen = ref(false);
 const customerOpen = ref(false);
 const loading = ref(false);
+// 列表加载失败要留常驻提示：只弹一次 toast，运营回头看到空表格会以为「没有订单」。
+const loadError = ref('');
 const saving = ref(false);
 const productMediaItems = ref<Array<{ url: string; type: 'image' | 'video'; autoplay?: boolean; muted?: boolean; youtubeLink?: string }>>([]);
 const highlightsText = ref('');
@@ -444,6 +449,7 @@ const shippingQuoteCents = computed(() => Math.round(Number(shippingQuoteAmount.
 
 async function refresh() {
   loading.value = true;
+  loadError.value = '';
   try {
     const [p, o, s, i, legal, storefront, c] = await Promise.all([listProducts(), listOrders(), getSettings(), getIntegrationStatus(), getPolicies(), getStorefrontContent(), listCustomers()]);
     products.value = p; orders.value = o; customers.value = c; Object.assign(settings, s); settings.shipping_zones = (s.shipping_zones || []).map((zone: any, index: number) => ({ id: String(zone.id || `zone_${index + 1}`), name: String(zone.name || `地区 ${index + 1}`), countriesText: Array.isArray(zone.countries) ? zone.countries.join(', ') : '', mode: zone.mode === 'quote' ? 'quote' : 'flat', amount_cents: Number(zone.amount_cents || 0), active: zone.active !== false }));
@@ -484,7 +490,10 @@ async function refresh() {
         { title: '配件更换与维护', description: '根据零件编号、尺寸或照片确认替换配件。', media: ['/assets/generated/attachment-detail.webp', '/assets/generated/attachment-inspection.webp', '/assets/generated/product-mulcher-detail-v2.webp'].map((url) => ({ url, type: 'image' })) }
       ];
     }
-  } catch (error: any) { Message.error(error?.response?.data?.error?.message || '商城数据加载失败'); }
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.error?.message || '商城数据加载失败';
+    Message.error(loadError.value);
+  }
   finally { loading.value = false; }
 }
 function newProduct() { Object.assign(editing, emptyProduct()); productMediaItems.value = []; highlightsText.value = ''; specificationsText.value = ''; faqsText.value = ''; productOpen.value = true; }
