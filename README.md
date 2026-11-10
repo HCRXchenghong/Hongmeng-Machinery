@@ -153,6 +153,8 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 ## 运维
 
+部署前想确认反向代理规则没被改坏：先跑起本地开发栈，再执行 `scripts/verify-caddy-routes.sh`。它会用生产 Caddyfile 起一个临时容器（内部 CA），逐个验证官网/后台/客服三个域名的转发、站点地图重写、媒体路径与安全响应头，失败即退出非零。
+
 **备份**：一键脚本在健康检查全绿后才写入每日 02:00 的 cron，产物在 `/opt/hongmeng-machinery/.deploy/backups`（`pg_dump` gzip + `.sha256`），默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`，该前缀为历史变量名）。
 
 **恢复**：`bash scripts/restore-production.sh [--yes] <备份文件>` 必须在安装目录执行，且要求同名 `.sha256` 文件在旁边。默认导入隔离库 `customer_service_restore` 做演练；要覆盖生产库需额外加 `--force-production` 并交互输入库名与 `RESTORE PRODUCTION`。

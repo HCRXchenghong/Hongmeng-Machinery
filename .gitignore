@@ -29,3 +29,6 @@ backups/
 
 # 本地 pub 缓存（避免使用系统 ~/.pub-cache）
 .pub-cache/
+
+# Caddy 路由校验的临时目录
+.caddy-routes-*/
