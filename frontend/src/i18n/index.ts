@@ -263,12 +263,14 @@ export function localizeProduct<T extends TranslatableProduct>(product: T, local
 
 export function formatMoney(cents: number, currency: 'USD' | 'CNY' = 'USD', locale: Locale = 'en'): string {
   const intlLocale = locale === 'zh-CN' ? 'zh-CN' : locale === 'ar' ? 'ar' : 'en-US';
-  return new Intl.NumberFormat(intlLocale, {
+  const formatted = new Intl.NumberFormat(intlLocale, {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format((Number(cents) || 0) / 100);
+  // 阿语是 RTL：不隔离的话 "US$ 5,499.00" 会被双向算法翻成 "$US 5,499.00"。
+  return locale === 'ar' ? `\u2066${formatted}\u2069` : formatted;
 }
 
 export function formatDate(value: string | number | Date, locale: Locale = 'en'): string {
