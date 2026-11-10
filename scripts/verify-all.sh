@@ -175,7 +175,7 @@ fi
 if [[ "${VERIFY_SKIP_STEP5:-0}" == "1" ]]; then
   mark_skip "VERIFY_SKIP_STEP5=1"
 elif [[ "$dist_present" -eq 1 ]]; then
-  mark_skip "frontend/dist 已存在且非空"
+  mark_skip "frontend/dist 已存在且非空——这一步只在干净检出（无 dist）时从零构建，避免覆盖本地已注入 PUBLIC_* 的产物；要强制重建就 rm -rf frontend/dist 再跑"
 else
   STUB_LOG="$(mktemp "${TMPDIR:-/tmp}/astreva-stub.XXXXXX")"
   node "$ROOT_DIR/scripts/verify-content-api-stub.mjs" >"$STUB_LOG" 2>&1 &
