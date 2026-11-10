@@ -37,12 +37,14 @@ function youtubeDetails(url: string) {
   } catch { return null; }
 }
 
-export default function MediaCarousel({ media, fallback = [], title = '', className = '', fit = 'cover' }: {
+export default function MediaCarousel({ media, fallback = [], title = '', className = '', fit = 'cover', priority = false }: {
   media?: StoreMedia[] | StoreMedia | null;
   fallback?: StoreMedia[];
   title?: string;
   className?: string;
   fit?: 'cover' | 'contain';
+  /** 首屏可见的轮播（首屏 hero）要立即加载，否则 LCP 会被 lazy 拖慢。 */
+  priority?: boolean;
 }) {
   const slides = normalizeMedia(media === undefined || media === null ? fallback : media);
   const locale = useLocale();
@@ -100,7 +102,7 @@ export default function MediaCarousel({ media, fallback = [], title = '', classN
     }} onTouchCancel={() => { touchStart.current = null; }}>
     {slideImages && transition && previous && <img key={`previous-${transition.previous}`} className={`hm-media-carousel-image hm-media-slide hm-media-leave-${transition.direction}`} src={previous.url} alt="" aria-hidden="true" />}
     {active.type === 'image'
-      ? <img key={`active-${index}`} className={`hm-media-carousel-image hm-media-slide ${slideImages ? `hm-media-enter-${transition?.direction}` : ''}`} src={active.url} alt={title} loading="lazy" />
+      ? <img key={`active-${index}`} className={`hm-media-carousel-image hm-media-slide ${slideImages ? `hm-media-enter-${transition?.direction}` : ''}`} src={active.url} alt={title} loading={priority && index === 0 ? 'eager' : 'lazy'} fetchPriority={priority && index === 0 ? 'high' : undefined} decoding="async" />
       : youtube
         ? <iframe className="hm-media-carousel-video" src={`https://www.youtube-nocookie.com/embed/${youtube.id}?playsinline=1&rel=0&autoplay=${active.autoplay || playing ? 1 : 0}&mute=${muted ? 1 : 0}&controls=1`} title={title || 'YouTube video'} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
         : <video ref={videoRef} className="hm-media-carousel-video" src={active.url} controls autoPlay={active.autoplay} muted={muted} loop={active.autoplay} playsInline preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} />}
