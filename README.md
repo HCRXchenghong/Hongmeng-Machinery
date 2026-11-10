@@ -157,6 +157,8 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 **备份**：一键脚本在健康检查全绿后才写入每日 02:00 的 cron，产物在 `/opt/hongmeng-machinery/.deploy/backups`（`pg_dump` gzip + `.sha256`），默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`，该前缀为历史变量名）。
 
+**日志保留**：后台「系统 → 系统日志」里可手动清理，默认留 180 天事件、30 天访客记录；接口按 `eventDays` 30–3650、`visitDays` 1–365 夹取，传 0 或负数不会被当成「立即清空」。
+
 **恢复**：`bash scripts/restore-production.sh [--yes] <备份文件>` 必须在安装目录执行，且要求同名 `.sha256` 文件在旁边。默认导入隔离库 `customer_service_restore` 做演练；要覆盖生产库需额外加 `--force-production` 并交互输入库名与 `RESTORE PRODUCTION`。
 
 **素材存储**：默认用内置对象存储（`s3-data` 卷，经 Caddy 在后台域名暴露 `/hongmeng-site-media`）。换外部 S3 / R2 时改 `.env.ubuntu` 的 `S3_ENDPOINT`、`S3_BUCKET`、`S3_ACCESS_KEY_ID`、`S3_SECRET_ACCESS_KEY`、`S3_FORCE_PATH_STYLE`、`S3_PUBLIC_BASE_URL`，然后**不要再跑一键脚本**（它会把 `S3_*` 按内置存储重写），只重建后台容器：
