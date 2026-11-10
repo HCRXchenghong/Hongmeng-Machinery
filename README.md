@@ -192,3 +192,12 @@ docker compose -f deployments/ubuntu/docker-compose.ubuntu.yml \
 **构建依赖源**：部署脚本会先测速再决定 apt / Docker 镜像 / Go 模块代理（`GOPROXY`）/ npm 源 / Alpine 源（`APK_MIRROR`），并通过 compose build args 传给 Dockerfile。国内 VPS 不配这些会卡在 `go mod download` 或 `apk add` 上——这是实测撞到过的。想手动覆盖：`GOPROXY=https://goproxy.cn,direct NPM_REGISTRY=https://registry.npmmirror.com APK_MIRROR=https://mirrors.aliyun.com/alpine docker compose build`。
 
 **安全响应头**：Caddy 给官网与后台都加了 HSTS / nosniff / Referrer-Policy / Permissions-Policy / X-Frame-Options；官网另有一条 CSP（script/style 允许 inline 以兼容 Astro 的内联 hydration，iframe 只放客服与视频站）。本地 `scripts/static-server.mjs` 发同一套头，便于在开发机验证 CSP 不会打断页面。
+
+## 上线前还需要你自己验一遍的四件事
+
+这几项必须有外部凭据或真机，代码侧只做到「配置缺失时给明确错误、不留脏数据」：
+
+1. **在线收款 / 退款**（Stripe）：在后台「商城 → 支付」填入 `sk_test_...` 与 webhook secret，用一个真实测试卡走一遍下单 → 支付 → webhook 回写 → 后台退款。没有密钥时的行为已验证：下单返回 502 并自动把订单置为 `cancelled`，退款返回 503/502 且订单金额不变。
+2. **邮件发送**（注册验证码、订单保存到账户）：在「系统 → 设置 → 邮件发送」填 SMTP 并点「发送测试邮件」。主机填错时返回 `发送失败：getaddrinfo ENOTFOUND ...`，不会静默失败。
+3. **坐席 App**（`servicebridge/apps/agent-mobile`，Flutter）：`flutter pub get && flutter analyze && flutter build apk`，装机后用 `superadmin` 连上 `https://<客服域名>` 收发消息。
+4. **真实 Ubuntu 部署**：在目标机跑一次 `scripts/deploy-one-click.sh`（建议先 `--check`）。本仓库已在 Ubuntu 24.04 容器里验过环境检查、依赖补齐、apt 测速选源、资源与端口校验；容器内没有 systemd，所以 `systemctl` 与证书签发只能在真机完成。
