@@ -172,4 +172,6 @@ docker compose -f deployments/ubuntu/docker-compose.ubuntu.yml \
 
 **监控**：`--monitoring` 启用 Prometheus、Grafana、node_exporter 与 cAdvisor（全部只监听回环），规则与面板在 `deployments/ubuntu/monitoring/`。node_exporter 负责磁盘空间与备份新鲜度指标，备份 cron 会把 `astreva_backup.prom` 写进 `deployments/ubuntu/data/node-exporter/textfile/`，所以「备份过期」告警真的有数据可判。blackbox_exporter 负责三个域名的外部拨测（目标由部署脚本写进 `monitoring/targets/http-targets.json`），仓库默认是空列表，避免手工起监控时误拨示例域名。
 
+**构建依赖源**：部署脚本会先测速再决定 apt / Docker 镜像 / Go 模块代理（`GOPROXY`）/ npm 源 / Alpine 源（`APK_MIRROR`），并通过 compose build args 传给 Dockerfile。国内 VPS 不配这些会卡在 `go mod download` 或 `apk add` 上——这是实测撞到过的。想手动覆盖：`GOPROXY=https://goproxy.cn,direct NPM_REGISTRY=https://registry.npmmirror.com APK_MIRROR=https://mirrors.aliyun.com/alpine docker compose build`。
+
 **安全响应头**：Caddy 给官网与后台都加了 HSTS / nosniff / Referrer-Policy / Permissions-Policy / X-Frame-Options；官网另有一条 CSP（script/style 允许 inline 以兼容 Astro 的内联 hydration，iframe 只放客服与视频站）。本地 `scripts/static-server.mjs` 发同一套头，便于在开发机验证 CSP 不会打断页面。

@@ -72,6 +72,10 @@ services:
     build:
       context: ../../
       dockerfile: deployments/ubuntu/servicebridge-backend.Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     restart: unless-stopped
     environment:
       HTTP_ADDR: ":8080"
@@ -128,6 +132,10 @@ services:
     build:
       context: ../../
       dockerfile: deployments/ubuntu/servicebridge-backend.Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     restart: unless-stopped
     environment:
       HTTP_ADDR: ":8080"
@@ -184,6 +192,10 @@ services:
     build:
       context: ../../
       dockerfile: deployments/ubuntu/servicebridge-user-web.Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- --spider http://127.0.0.1/index.html"]
@@ -197,6 +209,10 @@ services:
     build:
       context: ../../
       dockerfile: deployments/ubuntu/admin-server.Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     restart: unless-stopped
     depends_on:
       servicebridge-backend-1:
@@ -264,6 +280,10 @@ services:
     build:
       context: ../../
       dockerfile: deployments/ubuntu/rebuild-webhook.Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     restart: unless-stopped
     environment:
       REBUILD_WEBHOOK_PORT: ${REBUILD_WEBHOOK_PORT}
@@ -299,6 +319,10 @@ services:
     build:
       context: ../../
       dockerfile: frontend/Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        APK_MIRROR: ${APK_MIRROR:-}
     depends_on:
       rebuild-webhook:
         condition: service_healthy

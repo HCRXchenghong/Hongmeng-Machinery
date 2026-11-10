@@ -390,6 +390,29 @@ configure_apt_mirror() {
   ok "apt 源已指向 ${MIRROR_APT}"
 }
 
+# 构建阶段的依赖源：Go 模块代理与 npm 源走国内镜像，否则 --pull 之后的
+# go mod download / npm ci 会卡在 proxy.golang.org / registry.npmjs.org 超时。
+configure_build_mirrors() {
+  local goproxy_chosen npm_chosen
+  goproxy_chosen=$(pick_fastest "Go 模块代理" \
+    "https://goproxy.cn|七牛" \
+    "https://mirrors.aliyun.com/goproxy|阿里云" \
+    "https://proxy.golang.org|官方")
+  npm_chosen=$(pick_fastest "npm 源" \
+    "https://registry.npmmirror.com|npmmirror" \
+    "https://registry.npmjs.org|官方")
+  local apk_chosen
+  apk_chosen=$(pick_fastest "Alpine 源" \
+    "https://mirrors.aliyun.com/alpine|阿里云" \
+    "https://mirrors.tuna.tsinghua.edu.cn/alpine|清华" \
+    "https://dl-cdn.alpinelinux.org/alpine|官方")
+  GOPROXY="${goproxy_chosen%%|*},direct"
+  NPM_REGISTRY="${npm_chosen%%|*}"
+  APK_MIRROR="${apk_chosen%%|*}"
+  export GOPROXY NPM_REGISTRY APK_MIRROR
+  ok "Go 代理 ${GOPROXY}；npm 源 ${NPM_REGISTRY}；Alpine 源 ${APK_MIRROR}"
+}
+
 configure_docker_mirror() {
   local chosen mirror
   chosen=$(pick_fastest "Docker 镜像" \
@@ -760,6 +783,7 @@ backup_before_upgrade() {
 
 rebuild_and_up() {
   step "构建并启动容器"
+  [[ -n "${GOPROXY:-}" ]] || configure_build_mirrors
   compose pull --quiet 2>/dev/null || true
   compose build --pull 2>&1 | tail -3
   compose up -d --remove-orphans --wait --wait-timeout 600 2>&1 | tail -5 || {
