@@ -27,6 +27,12 @@ services:
         condition: service_started
       servicebridge-backend-2:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
     networks:
       - hongmeng
 
@@ -299,13 +305,18 @@ services:
     restart: unless-stopped
     volumes:
       - frontend-published:/usr/share/nginx/site:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
     networks:
       - hongmeng
 
   # MinIO 官方镜像已从 Docker Hub 下架，内置 S3 改为 SeaweedFS（MIT）。
   # 只用它的 S3 网关给后台素材直传，不对外暴露 8333 端口，进出都走 Caddy。
   s3:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.50
     restart: unless-stopped
     command:
       [
@@ -357,6 +368,11 @@ services:
       - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ./monitoring/targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     ports:
       - "${PROMETHEUS_HOST_PORT:-127.0.0.1:9090}:9090"
     networks:
@@ -389,6 +405,11 @@ services:
       - --config.file=/etc/blackbox/blackbox.yml
     volumes:
       - ./monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     ports:
       - "${BLACKBOX_HOST_PORT:-127.0.0.1:9115}:9115"
     networks:
@@ -429,6 +450,11 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     ports:
       - "${GRAFANA_HOST_PORT:-127.0.0.1:3000}:3000"
     depends_on:

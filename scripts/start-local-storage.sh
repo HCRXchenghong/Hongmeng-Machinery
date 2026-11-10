@@ -46,7 +46,7 @@ if ! docker inspect hongmeng-cms-s3 >/dev/null 2>&1; then
     -p 127.0.0.1:${MINIO_API_PORT:-10016}:9000 \
     -p 127.0.0.1:${MINIO_CONSOLE_PORT:-10017}:8888 \
     -v hongmeng-cms-s3-data:/data \
-    chrislusf/seaweedfs:latest mini -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=9000 -bucket="$S3_BUCKET" >/dev/null
+    chrislusf/seaweedfs:4.50 mini -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=9000 -bucket="$S3_BUCKET" >/dev/null
 else
   docker start hongmeng-cms-s3 >/dev/null
 fi
