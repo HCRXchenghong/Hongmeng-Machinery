@@ -77,6 +77,38 @@ test('商品 sitemap 为每种语言输出详情 URL、互链 hreflang 和商品
   assert.match(body, /https:\/\/cdn\.example\.com\/mm38-side\.webp/);
 });
 
+test('游客订单报价后允许后台代确认，有账户的订单仍要客户自己接受', async () => {
+  const run = async (current) => {
+    const replies = [];
+    const store = {
+      query: async (sql) => {
+        if (sql.includes('FROM shop_orders WHERE id')) return { rows: [current] };
+        if (sql.startsWith('UPDATE shop_orders SET status=')) return { rows: [{ ...current, status: 'confirmed', shipping_status: 'accepted', shipping_accepted_at: new Date().toISOString() }] };
+        if (sql.startsWith('INSERT INTO shop_order_events')) return { rows: [] };
+        return { rows: [] };
+      },
+      withTransaction: async (fn) => fn({ query: store.query }),
+      readRuntimeSetting: async () => null
+    };
+    const router = createCommerceRouter({
+      store,
+      bodyJson: async () => ({ status: 'confirmed' }),
+      json: (_res, status, payload) => replies.push({ status, payload }),
+      verifySession: () => true,
+      auditEvent: async () => {}
+    });
+    await router({ method: 'PATCH', url: '/site-admin-api/commerce/orders/order-1', headers: {} }, { setHeader() {} }, '/site-admin-api/commerce/orders/order-1');
+    return replies[0].status;
+  };
+  const base = {
+    id: 'order-1', order_number: 'HM-GUEST', status: 'pending', payment_status: 'unpaid',
+    shipping_status: 'quoted', shipping_cents: 45000, subtotal_cents: 549900, total_cents: 594900,
+    shipping_accepted_at: null, tracking_number: '', tracking_url: '', items: []
+  };
+  assert.equal(await run({ ...base, customer_id: null }), 200, '游客订单应允许后台代确认报价');
+  assert.equal(await run({ ...base, customer_id: 'customer-1' }), 409, '有账户的订单仍要等客户接受');
+});
+
 test('订单不允许跳过状态流转', async () => {
   const queries = [];
   const { router, replies } = routerFor({ status: 'shipped', tracking_number: 'TRACK-1' }, async (sql) => {
@@ -92,7 +124,8 @@ test('订单不允许跳过状态流转', async () => {
 test('报价待定订单不能进入确认或发货状态，直到后台提交运费报价', async () => {
   const replies = [];
   const updates = [];
-  let current = { id: 'order-quote', status: 'pending', shipping_status: 'quote_pending', shipping_cents: 0, subtotal_cents: 9900, total_cents: 9900, payment_status: 'unpaid', items: [], tracking_number: '' };
+  // 有账户的订单：报价后必须由客户本人接受，后台不能替客户确认。
+  let current = { id: 'order-quote', status: 'pending', shipping_status: 'quote_pending', shipping_cents: 0, subtotal_cents: 9900, total_cents: 9900, payment_status: 'unpaid', items: [], tracking_number: '', customer_id: 'customer-1' };
   const store = {
     withTransaction: (run) => run({ query: async (sql, params = []) => {
       if (sql.includes('SELECT * FROM shop_orders WHERE id = $1')) return { rows: [current] };

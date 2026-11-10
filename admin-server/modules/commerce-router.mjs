@@ -1021,7 +1021,10 @@ export function createCommerceRouter({ requestRebuild, store, bodyJson, json, ve
           const quotePending = shippingStatus === 'quote_pending';
           if (quotePending && !hasShippingQuote && ['confirmed', 'paid', 'fulfilling', 'shipped', 'completed'].includes(next)) throw failure('请先填写并保存运费报价，再确认或发货。', 409);
           if (quotePending && hasShippingQuote && ['confirmed', 'paid', 'fulfilling', 'shipped', 'completed'].includes(next)) throw failure('报价已保存后需要等待客户接受，再确认订单。', 409);
-          if (shippingStatus === 'quoted' && !current.shipping_accepted_at && ['confirmed', 'paid', 'fulfilling', 'shipped', 'completed'].includes(next)) throw failure('请等待客户接受运费报价后再确认订单。', 409);
+          // 游客订单没有账户，没法在客户中心点「接受报价」；由后台按线下确认结果代确认。
+          const confirmLevel = ['confirmed', 'paid', 'fulfilling', 'shipped', 'completed'].includes(next);
+          const guestAcceptsQuote = !current.customer_id && shippingStatus === 'quoted' && !current.shipping_accepted_at && confirmLevel;
+          if (shippingStatus === 'quoted' && !current.shipping_accepted_at && confirmLevel && !guestAcceptsQuote) throw failure('请等待客户接受运费报价后再确认订单。', 409);
           if (hasShippingQuote && current.payment_status === 'paid' && requestedShipping !== current.shipping_cents) throw failure('已付款订单不能直接修改运费。');
           const nextShipping = hasShippingQuote ? requestedShipping : Number(current.shipping_cents || 0);
           const nextTotal = Number(current.subtotal_cents ?? current.total_cents) + Number(nextShipping);
@@ -1035,9 +1038,10 @@ export function createCommerceRouter({ requestRebuild, store, bodyJson, json, ve
               if (restoreQuantity > 0) await client.query('UPDATE shop_products SET stock=stock+$2 WHERE id=$1', [item.id, restoreQuantity]);
             }
           }
-          const nextShippingStatus = quotePending && hasShippingQuote ? 'quoted' : shippingStatus;
-          const saved = (await client.query("UPDATE shop_orders SET status=$2, payment_status=CASE WHEN $2='paid' THEN 'paid' WHEN $2='cancelled' AND payment_status<>'paid' THEN 'failed' ELSE payment_status END, tracking_number=$3, tracking_url=$4, shipping_cents=$5, total_cents=$6, shipping_status=$7, shipping_quoted_at=CASE WHEN $7='quoted' AND shipping_status='quote_pending' THEN now() ELSE shipping_quoted_at END, updated_at=now() WHERE id=$1 RETURNING *", [current.id, next, tracking || current.tracking_number, trackingUrl || current.tracking_url || '', nextShipping, nextTotal, nextShippingStatus])).rows[0];
+          const nextShippingStatus = guestAcceptsQuote ? 'accepted' : (quotePending && hasShippingQuote ? 'quoted' : shippingStatus);
+          const saved = (await client.query("UPDATE shop_orders SET status=$2, payment_status=CASE WHEN $2='paid' THEN 'paid' WHEN $2='cancelled' AND payment_status<>'paid' THEN 'failed' ELSE payment_status END, tracking_number=$3, tracking_url=$4, shipping_cents=$5, total_cents=$6, shipping_status=$7, shipping_accepted_at=CASE WHEN $8 THEN now() ELSE shipping_accepted_at END, shipping_quoted_at=CASE WHEN $7='quoted' AND shipping_status='quote_pending' THEN now() ELSE shipping_quoted_at END, updated_at=now() WHERE id=$1 RETURNING *", [current.id, next, tracking || current.tracking_number, trackingUrl || current.tracking_url || '', nextShipping, nextTotal, nextShippingStatus, guestAcceptsQuote])).rows[0];
           if (quotePending && hasShippingQuote) await client.query('INSERT INTO shop_order_events (order_id, action, detail, actor) VALUES ($1,$2,$3::jsonb,$4)', [current.id, 'shipping.quote.created', JSON.stringify({ shipping_cents: nextShipping, total_cents: nextTotal }), 'admin']);
+          if (guestAcceptsQuote) await client.query('INSERT INTO shop_order_events (order_id, action, detail, actor) VALUES ($1,$2,$3::jsonb,$4)', [current.id, 'shipping.quote.accepted', JSON.stringify({ shipping_cents: Number(current.shipping_cents || 0), accepted_by: 'admin', reason: 'guest-order' }), 'admin']);
           await client.query('INSERT INTO shop_order_events (order_id, action, detail, actor) VALUES ($1,$2,$3::jsonb,$4)', [current.id, 'status.changed', JSON.stringify({ from: current.status, to: next, tracking_number: saved.tracking_number, tracking_url: saved.tracking_url }), 'admin']);
           return saved;
         });
