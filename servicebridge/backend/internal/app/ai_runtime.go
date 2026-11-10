@@ -377,6 +377,34 @@ func (s *Service) FetchProviderModels(ctx context.Context, providerID string) (d
 	return updated, models, nil
 }
 
+
+// upstreamUnreachable 判断错误是否属于「根本连不上」：DNS 失败、拒绝连接、超时、网络不可达。
+// 这类错误重试没有意义，直接返回比再等一轮超时更快给出反馈。
+func upstreamUnreachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"context deadline exceeded",
+		"connection refused",
+		"no such host",
+		"i/o timeout",
+		"connection reset",
+		"network is unreachable",
+		"dial tcp",
+		"tls handshake timeout",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // TestProvider 执行最小连通性测试：优先 GET /models，失败时用一次极小的对话请求兜底。
 // 返回的 error 供 HTTP 层映射为 502 并带上原因。
 func (s *Service) TestProvider(ctx context.Context, providerID string) (AIProviderTestResult, error) {
@@ -397,9 +425,12 @@ func (s *Service) TestProvider(ctx context.Context, providerID string) (AIProvid
 			ModelsCount: len(models),
 		}, nil
 	}
+	// 连不上或超时就没必要再等一次：兜底对话只会让管理员多等 30 秒。
+	// 只有「上游能连上但 /models 不可用」时才值得用对话验证。
+	unreachable := upstreamUnreachable(modelsErr)
 	// 部分上游不提供 /models；有密钥时用一次极小对话验证连通性。
 	// 没有密钥时不能走 Reply（它会直接返回本地兜底文案，造成假成功）。
-	if strings.TrimSpace(settings.APIKey) != "" {
+	if !unreachable && strings.TrimSpace(settings.APIKey) != "" {
 		if reply, chatErr := s.ai.Reply(ctx, settings, s.store.ContactSettings(), nil, "ping", ai.LangEn, ""); chatErr == nil && strings.TrimSpace(reply) != "" {
 			return AIProviderTestResult{
 				OK:        true,
