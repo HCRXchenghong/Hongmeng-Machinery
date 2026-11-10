@@ -50,7 +50,7 @@
 
 - `/site-admin-api/shop/*`：公开商品与下单接口。
 - `/site-admin-api/commerce/*`：需要 2FA 管理员会话。
-- 完整端点列于 `/openapi.json`。
+- `/openapi.json` 收录公开接口与主要后台接口（67 个路径）；分析上报、多语言、部分后台 CRUD 仅在源码里，未写入文档。
 
 ## 本机运行
 
