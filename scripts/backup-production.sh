@@ -62,9 +62,12 @@ if [[ -n "${ASTREVA_BACKUP_TEXTFILE:-}" ]]; then
   TEXTFILE_TMP="$ASTREVA_BACKUP_TEXTFILE.tmp.$$"
   mkdir -p "$(dirname "$ASTREVA_BACKUP_TEXTFILE")"
   {
-    echo "# HELP astreva_backup_last_success_timestamp_seconds Unix 时间戳：最近一次 PostgreSQL 备份成功的时间。"
-    echo "# TYPE astreva_backup_last_success_timestamp_seconds gauge"
-    echo "astreva_backup_last_success_timestamp_seconds $(date -u +%s)"
+    # 双写：hongmeng_* 是新品牌，astreva_* 保留给已有告警与看板。
+    for prefix in hongmeng_ astreva_; do
+      echo "# HELP ${prefix}backup_last_success_timestamp_seconds Unix 时间戳：最近一次 PostgreSQL 备份成功的时间。"
+      echo "# TYPE ${prefix}backup_last_success_timestamp_seconds gauge"
+      echo "${prefix}backup_last_success_timestamp_seconds $(date -u +%s)"
+    done
   } > "$TEXTFILE_TMP"
   mv "$TEXTFILE_TMP" "$ASTREVA_BACKUP_TEXTFILE"
 fi

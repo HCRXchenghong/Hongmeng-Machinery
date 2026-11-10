@@ -809,23 +809,23 @@ async function adminMetrics() {
     publishService.statusPayload()
   ]);
   const buildState = publishStatus.rebuild.lastBuild?.status || 'unknown';
-  return [
-    '# HELP astreva_admin_up Unified admin process health.',
-    '# TYPE astreva_admin_up gauge',
-    'astreva_admin_up 1',
-    '# HELP astreva_cms_store_info Active CMS persistence backend.',
-    '# TYPE astreva_cms_store_info gauge',
-    `astreva_cms_store_info{driver="${CMS_STORE_DRIVER}"} 1`,
-    '# HELP astreva_site_content_products Current product count.',
-    '# TYPE astreva_site_content_products gauge',
-    `astreva_site_content_products ${content.products.length}`,
-    '# HELP astreva_fallback_versions_total Saved fallback content versions.',
-    '# TYPE astreva_fallback_versions_total gauge',
-    `astreva_fallback_versions_total ${fallbackStore.versions.length}`,
-    '# HELP astreva_publish_build_state Last static build state.',
-    '# TYPE astreva_publish_build_state gauge',
-    `astreva_publish_build_state{state="${buildState}"} 1`
-  ].join('\n') + '\n';
+  const samples = [
+    ['admin_up', '', '1', 'Unified admin process health.'],
+    ['cms_store_info', `{driver="${CMS_STORE_DRIVER}"}`, '1', 'Active CMS persistence backend.'],
+    ['site_content_products', '', String(content.products.length), 'Current product count.'],
+    ['fallback_versions_total', '', String(fallbackStore.versions.length), 'Saved fallback content versions.'],
+    ['publish_build_state', `{state="${buildState}"}`, '1', 'Last static build state.']
+  ];
+  const lines = [];
+  // 指标名双写：hongmeng_* 是新品牌，astreva_* 保留给已有的告警规则与仪表盘。
+  for (const prefix of ['hongmeng_', 'astreva_']) {
+    for (const [name, labels, value, help] of samples) {
+      lines.push(`# HELP ${prefix}${name} ${help}`);
+      lines.push(`# TYPE ${prefix}${name} gauge`);
+      lines.push(`${prefix}${name}${labels} ${value}`);
+    }
+  }
+  return lines.join('\n') + '\n';
 }
 
 async function setSessionCookie(res, user, req = null) {
