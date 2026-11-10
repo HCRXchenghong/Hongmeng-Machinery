@@ -16,13 +16,6 @@ const containsChinese = (value: unknown): boolean => {
   return false;
 };
 
-const containsArabic = (value: unknown): boolean => {
-  if (hasArabic(value)) return true;
-  if (Array.isArray(value)) return value.some(containsArabic);
-  if (value && typeof value === 'object') return Object.values(value).some(containsArabic);
-  return false;
-};
-
 
 /**
  * 按语言挑字段：英文/阿语站不能用中文文案，但也不能因为某一个字段是中文
