@@ -4,11 +4,14 @@
 #
 # 做法：把 Caddyfile 里的容器上游临时替换成本机端口、TLS 换成内部 CA，
 # 起一个临时 Caddy 容器，再用 curl --resolve 打三个域名。
-# 只读仓库文件，所有临时产物都在 $TMPDIR，退出时清理。
+# 只读仓库文件，临时产物放仓库内 .caddy-routes-*/（容器只挂载了仓库路径），退出时清理。
 #
-# 前置：本机已跑着开发栈（scripts/run-local-stack.sh），端口 4331/1338/5175/8081。
+# 前置：本机已跑着开发栈（scripts/run-local-stack.sh），端口 4331/1338/5175/8081；
+#       另需一个 SeaweedFS S3 网关供「媒体路径」断言使用（默认 58333，
+#       例如 docker run -d -p 127.0.0.1:58333:8333 chrislusf/seaweedfs:4.50 \
+#         mini -dir=/data -ip.bind=0.0.0.0 -s3 -s3.port=8333 -bucket=hongmeng-site-media）。
 #
-# 用法：scripts/verify-caddy-routes.sh [--site-port 4331] [--admin-port 1338] [--service-port 5175] [--api-port 8081]
+# 用法：scripts/verify-caddy-routes.sh [--site-port 4331] [--admin-port 1338] [--service-port 5175] [--api-port 8081] [--s3-port 58333]
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,6 +19,7 @@ SITE_PORT=4331
 ADMIN_PORT=1338
 SERVICE_PORT=5175
 API_PORT=8081
+S3_PORT=58333
 CADDY_IMAGE="${CADDY_IMAGE:-caddy:2.8-alpine}"
 HTTP_PORT="${CADDY_TEST_HTTP_PORT:-18080}"
 HTTPS_PORT="${CADDY_TEST_HTTPS_PORT:-18443}"
@@ -26,6 +30,7 @@ while [[ $# -gt 0 ]]; do
     --admin-port) ADMIN_PORT="$2"; shift 2 ;;
     --service-port) SERVICE_PORT="$2"; shift 2 ;;
     --api-port) API_PORT="$2"; shift 2 ;;
+    --s3-port) S3_PORT="$2"; shift 2 ;;
     -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
   esac
@@ -43,9 +48,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 - "$ROOT_DIR" "$WORK_DIR" "$SITE_PORT" "$ADMIN_PORT" "$SERVICE_PORT" "$API_PORT" <<'PY'
+python3 - "$ROOT_DIR" "$WORK_DIR" "$SITE_PORT" "$ADMIN_PORT" "$SERVICE_PORT" "$API_PORT" "$S3_PORT" <<'PY'
 import pathlib, sys
-root, work, site, admin, service, api = sys.argv[1:7]
+root, work, site, admin, service, api, s3 = sys.argv[1:8]
 src = pathlib.Path(root, 'deployments/ubuntu/Caddyfile').read_text()
 out = (src
        .replace('admin-server:1337', f'host.docker.internal:{admin}')
@@ -53,7 +58,7 @@ out = (src
        .replace('servicebridge-user-web:80', f'host.docker.internal:{service}')
        .replace('servicebridge-backend-1:8080', f'host.docker.internal:{api}')
        .replace('servicebridge-backend-2:8080', f'host.docker.internal:{api}')
-       .replace('s3:8333', 'host.docker.internal:58333')
+       .replace('s3:8333', f'host.docker.internal:{s3}')
        .replace("{\n\temail {$ACME_EMAIL}\n\tadmin off\n}", "{\n\temail {$ACME_EMAIL}\n\tadmin off\n\tlocal_certs\n}"))
 pathlib.Path(work, 'Caddyfile').write_text(out)
 PY
