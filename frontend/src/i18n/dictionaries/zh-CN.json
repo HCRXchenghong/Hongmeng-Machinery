@@ -567,5 +567,9 @@
   "Enter the email you used for the order first.": "请先填下单时用的邮箱。",
   "Send code": "发送验证码",
   "Sending…": "发送中…",
-  "Please enter the verification code.": "请填写验证码。"
+  "Please enter the verification code.": "请填写验证码。",
+  "You can order as a guest — we reply with the shipping quote by email.": "您可以先以游客身份下单——我们会通过邮件把运费报价发给您。",
+  "or": "或",
+  "create an account": "创建账户",
+  "if you would rather track the quote and later orders in one place.": "，这样报价和后续订单都能在一处查看。"
 }

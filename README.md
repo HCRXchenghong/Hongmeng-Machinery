@@ -87,6 +87,10 @@ bash scripts/run-local-stack.sh
 
 页面内容与 SEO 在构建期注入，后台保存后会自动触发重建；商品价格、库存与订单读实时 API。英文/阿拉伯语文案来自翻译层，改完源语言建议到「多语言内容」核对。
 
+> 不要手动 `npm run build:frontend`：`PUBLIC_ADMIN_URL` 等变量缺失时前台会回落成 `127.0.0.1:1338` 写进产物，局域网和线上客户端直接连不上（CSP 也会把这些请求拦掉）。要么用 `scripts/run-local-stack.sh`，要么显式带上 `PUBLIC_ADMIN_URL` / `PUBLIC_SITE_URL` / `PUBLIC_SERVICEBRIDGE_URL`。
+
+`npm run check:i18n` 会比对词典键位：阿拉伯语目前仍缺 104 条（前台缺词条时显示英文），缺口被冻结在脚本的 `BASELINE` 里，只允许变小；补齐后下调即可。
+
 ## 生产部署
 
 Ubuntu 22.04 / 24.04 上以 root 一行执行，脚本自动完成环境检查、线路测速、Docker 安装、证书签发与全量自检：

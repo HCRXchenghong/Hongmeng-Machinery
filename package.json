@@ -36,10 +36,11 @@
     "typecheck": "npm --workspace frontend run typecheck",
     "lint": "npm --workspace frontend run lint",
     "format": "npm --workspace frontend run format",
-    "check": "npm run typecheck && npm run lint && npm run cms:contract",
+    "check": "npm run typecheck && npm run lint && npm run cms:contract && npm run check:i18n",
     "postinstall": "node scripts/ensure-rolldown-binding.mjs",
     "verify": "bash scripts/verify-all.sh",
-    "check:locale": "node scripts/check-locale-first-paint.mjs"
+    "check:locale": "node scripts/check-locale-first-paint.mjs",
+    "check:i18n": "node scripts/check-i18n-parity.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.62.1"

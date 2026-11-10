@@ -491,5 +491,9 @@
   "Enter the email you used for the order first.": "أدخل البريد المستخدم في الطلب أولًا.",
   "Send code": "أرسل الرمز",
   "Sending…": "جارٍ الإرسال…",
-  "Please enter the verification code.": "يرجى إدخال رمز التحقق."
+  "Please enter the verification code.": "يرجى إدخال رمز التحقق.",
+  "You can order as a guest — we reply with the shipping quote by email.": "يمكنك الطلب كزائر — سنرسل عرض سعر الشحن عبر البريد الإلكتروني.",
+  "or": "أو",
+  "create an account": "إنشاء حساب",
+  "if you would rather track the quote and later orders in one place.": "، حتى تتابع العرض والطلبات اللاحقة في مكان واحد."
 }
