@@ -149,7 +149,7 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 首次运行会把账号写到 `/opt/hongmeng-machinery/.deploy/credentials.txt`（600），但里面**不是 CMS 后台密码**：
 
 - `superadmin` / 坐席密码：给客服引擎与客服 App 用；
-- CMS 控制台第一次打开是「首次使用」向导，由你现场创建管理员并绑 2FA，之后再改密用 `node scripts/reset-admin.mjs <邮箱> <新密码>`。
+- CMS 控制台第一次打开是「首次使用」向导，由你现场创建管理员并绑 2FA。**忘密码或 2FA 丢了**：在服务器上跑 `node scripts/reset-admin.mjs <新邮箱> <新密码>` —— 它会自动读 `deployments/ubuntu/.env.ubuntu`，宿主机连不上容器内数据库时自动改走 `docker compose exec postgres psql`，重置后打印新的 2FA 密钥、二维码（`.local-logs/admin-2fa-reset.png`）并自测登录。
 
 ## 运维
 
