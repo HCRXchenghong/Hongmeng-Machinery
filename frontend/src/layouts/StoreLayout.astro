@@ -47,6 +47,28 @@ const pageTitle = String((product ? fillProduct(pageSeo.title) : pageSeo.title) 
 const pageDescription = String((product ? fillProduct(pageSeo.description) : pageSeo.description) || description).trim();
 const pageKeywords = String((product ? fillProduct(pageSeo.keywords) : pageSeo.keywords) || '').trim();
 const pageImage = pageSeo.image && !product ? absoluteUrl(pageSeo.image) : socialImage;
+// 站点级结构化数据：品牌、站点语言与社交账号（商品页另有 Product schema）。
+const socialLinks = Object.values(((bootstrap.copy as any)?.social || {}) as Record<string, unknown>)
+  .filter((value): value is string => typeof value === 'string' && /^https:\/\//i.test(value.trim()))
+  .map((value) => value.trim());
+const siteJsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'Hongmeng Machinery',
+      url: siteUrl,
+      logo: absoluteUrl('/assets/hongmeng-logo.svg'),
+      ...(socialLinks.length ? { sameAs: socialLinks } : {})
+    },
+    {
+      '@type': 'WebSite',
+      name: 'Hongmeng Machinery',
+      url: absoluteUrl(localizedPath(locale === 'zh-CN' ? '/zh' : locale === 'ar' ? '/ar' : '')),
+      inLanguage: htmlLang
+    }
+  ]
+};
 const productJsonLd = product ? {
   '@context': 'https://schema.org',
   '@type': 'Product',
@@ -95,6 +117,7 @@ const productJsonLd = product ? {
     <meta name="twitter:title" content={`${pageTitle} | Hongmeng Machinery`} />
     <meta name="twitter:description" content={pageDescription} />
     <meta name="twitter:image" content={pageImage} />
+    <script type="application/ld+json" data-hongmeng-site="true" set:html={JSON.stringify(siteJsonLd).replace(/</g, '\\u003c')} />
     {productJsonLd && <script type="application/ld+json" data-hongmeng-product="true" set:html={JSON.stringify(productJsonLd).replace(/</g, '\\u003c')} />}
     {noindex && <meta name="robots" content="noindex, follow" />}
     {mode === 'home' && <link rel="preload" as="image" href="/assets/generated/home-hero.webp" />}
