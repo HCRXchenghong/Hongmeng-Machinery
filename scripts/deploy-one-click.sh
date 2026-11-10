@@ -729,12 +729,23 @@ EOF
   chmod 600 "$ENV_FILE"; umask 022
 
   cat >"$CRED_FILE" <<EOF
-# 后台登录凭据（$(date -Iseconds)）
+# 登录凭据（$(date -Iseconds)）
+#
+# ① CMS 后台（官网内容 / 商城 / 客服运营）
 后台地址: https://$ADMIN_DOMAIN/site-admin/
-管理员账号: superadmin
-管理员密码: $admin_pass
-客服坐席密码: $agent_pass
+没有默认账号：首次打开会进入「首次使用：创建管理员并绑定 2FA」引导，
+自己填邮箱和密码、扫码绑定验证器，之后用该邮箱 + 验证码登录。
+（数据里已有管理员时，该引导不会再出现。）
+
+# ② 客服引擎管理台 / 坐席 App（ServiceBridge 自带后台）
+地址: https://$SERVICE_DOMAIN/?embed=1
+超管账号: superadmin
+超管密码: $admin_pass
+坐席账号密码: $agent_pass
+
+# ③ 监控（--monitoring 时才有）
 Grafana: http://127.0.0.1:3000 （admin / ${grafana_pass}）
+
 环境文件: $ENV_FILE
 EOF
   chmod 600 "$CRED_FILE"
@@ -953,6 +964,9 @@ ${C_OK}${C_BOLD}部署完成${C_RESET}
   后台    https://$ADMIN_DOMAIN/site-admin/
   客服    https://$SERVICE_DOMAIN/?embed=1
   接口    https://$SERVICE_DOMAIN/api
+
+  ${C_BOLD}下一步：打开上面的后台地址，按引导创建管理员（邮箱 + 密码 + 2FA）${C_RESET}
+  CMS 后台没有默认账号；客服引擎超管 superadmin 的密码在凭据文件里。
 
   登录凭据  $CRED_FILE
   环境文件  $ENV_FILE

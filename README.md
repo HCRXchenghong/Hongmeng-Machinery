@@ -116,6 +116,8 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 少了 `Accept: application/vnd.github.raw` 拿到的是 JSON，管道给 bash 会直接报语法错。
 
+部署完成后第一次打开 `https://<后台域名>/site-admin/`，页面会进入「首次使用：创建管理员并绑定 2FA」——CMS 后台**没有默认账号**，管理员由这一步自己创建。`credentials.txt` 里的 `superadmin` 是客服引擎（ServiceBridge）自带管理台的超管，两者不是同一个账号。
+
 ````
 
 执行前把三个域名的 A 记录指向本机，运行中会询问域名与证书邮箱。脚本会：
