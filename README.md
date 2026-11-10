@@ -166,6 +166,8 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 **备份**：一键脚本在健康检查全绿后才写入每日 02:00 的 cron，产物在 `/opt/hongmeng-machinery/.deploy/backups`（`pg_dump` gzip + `.sha256`），默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`，该前缀为历史变量名）。
 
+**访问统计与同意**：拒绝可选 Cookie 时只上报 `{anonymous: true}` 的匿名计数——不带 visitor_id / session_id，也不写任何 Cookie；同意后才写 `hm_consent` 并带访客与会话标识。浏览器发出 GPC（`navigator.globalPrivacyControl`）时，未同意状态下连匿名计数都不上报。购物车放在 `localStorage`（`hongmeng_cart_v1`），关页面再回来还在。
+
 **日志保留**：后台「系统 → 系统日志」里可手动清理，默认留 180 天事件、30 天访客记录；接口按 `eventDays` 30–3650、`visitDays` 1–365 夹取，传 0 或负数不会被当成「立即清空」。
 
 **恢复**：`bash scripts/restore-production.sh [--yes] <备份文件>` 必须在安装目录执行，且要求同名 `.sha256` 文件在旁边。默认导入隔离库 `customer_service_restore` 做演练；要覆盖生产库需额外加 `--force-production` 并交互输入库名与 `RESTORE PRODUCTION`。
