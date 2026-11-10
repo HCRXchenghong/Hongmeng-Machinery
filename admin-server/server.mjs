@@ -1244,6 +1244,7 @@ const leadsModule = createLeadsModule({
 });
 
 const handleContent = createContentRouter({
+  requestRebuild: (source) => { publishService.requestPublish('system', 'current').catch(() => {}); },
   bodyJson,
   json,
   verifySession,
@@ -1700,6 +1701,8 @@ async function handleMediaRuntimeSettings(req, res, pathname) {
 
 const handleCommerce = createCommerceRouter({
   store: platformStore,
+  // 内容/SEO 改了就把前台重建排进队列（失败不阻断保存，状态可在「发布」里查）。
+  requestRebuild: (source) => { publishService.requestPublish('system', 'current').catch(() => {}); },
   requestIp,
   storefrontTranslationService,
   storefrontSeoService,

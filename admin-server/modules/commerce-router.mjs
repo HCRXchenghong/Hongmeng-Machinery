@@ -160,8 +160,9 @@ function publicProduct(row) {
 }
 
 /**
- * 同意凭据：优先用埋点签发的 HttpOnly Cookie（XSS 读不到也改不了），
- * 拿不到时才退回到前端带的时间戳（只在 12 小时内、且不晚于 5 分钟后才认）。
+ * 同意凭据：只用来决定订单里记不记「分析同意时间」，**不再拦下单**。
+ * 必要存储（购物车、订单、联系方式）属于履约必需，不需要分析同意；
+ * 优先用埋点签发的 HttpOnly Cookie，拿不到时退回前端时间戳（12 小时内、不晚于 5 分钟）。
  */
 function consentProof(req, fallbackTimestamp) {
   if (readConsentCookie(req)) return { ok: true, source: 'cookie' };
@@ -169,7 +170,7 @@ function consentProof(req, fallbackTimestamp) {
   if (Number.isFinite(stamp) && Date.now() - stamp < CONSENT_MAX_AGE_MS && stamp - Date.now() < 5 * 60_000) {
     return { ok: true, source: 'timestamp' };
   }
-  return { ok: false, message: '请先允许 Cookie 再提交订单：页面右下角的 Cookie 弹窗里点「允许」即可。' };
+  return { ok: true, source: 'none', timestamp: '' };
 }
 
 /** 同邮箱 + 同清单 + 同金额 + 15 分钟内视为同一单（幂等键在浏览器里，清存储/双击都会变）。 */
@@ -191,7 +192,7 @@ async function findRecentDuplicate(query, input) {
   }) || null;
 }
 
-export function createCommerceRouter({ store, bodyJson, json, verifySession, verifyAdminPassword = null, applyPublicCors = () => true, requestIp = null, auditEvent = async () => {}, storefrontTranslationService = null, storefrontSeoService = null, siteOrigin = process.env.PUBLIC_SITE_URL || 'http://127.0.0.1:4331' }) {
+export function createCommerceRouter({ requestRebuild, store, bodyJson, json, verifySession, verifyAdminPassword = null, applyPublicCors = () => true, requestIp = null, auditEvent = async () => {}, storefrontTranslationService = null, storefrontSeoService = null, siteOrigin = process.env.PUBLIC_SITE_URL || 'http://127.0.0.1:4331' }) {
   const checkoutAttempts = new Map();
 
   // 按国家/地区配置运费。国家列存 ISO alpha-2；也兼容常见英文全称。
@@ -816,7 +817,8 @@ export function createCommerceRouter({ store, bodyJson, json, verifySession, ver
         if (customerSession && customerSession.email.toLowerCase() !== input.email.toLowerCase()) throw failure('请使用当前账户邮箱完成下单。', 400);
         // 同意凭据：优先信任埋点写入的 HttpOnly 签名 Cookie（XSS 改不动），退回到前端时间戳。
         const consent = consentProof(req, input.consent_analytics_at);
-        if (!consent.ok) throw failure(consent.message, 428);
+        // 没有分析同意也要能下单：只是不记录同意时间。
+        const consentAt = consent.ok && consent.source !== 'none' ? input.consent_analytics_at : '';
         const buildOrder = async (client) => {
           const existing = await client.query('SELECT * FROM shop_orders WHERE idempotency_key = $1', [input.idempotency_key]);
           if (existing.rows[0]) {
@@ -854,7 +856,7 @@ export function createCommerceRouter({ store, bodyJson, json, verifySession, ver
           const inserted = await client.query(
             `INSERT INTO shop_orders (id, order_number, idempotency_key, customer_name, email, phone, shipping_address, items, subtotal_cents, shipping_cents, total_cents, note, currency, payment_provider, payment_status, customer_id, legal_name, shipping_status, consent_analytics_at, cart_nonce)
              VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
-            [id, number, input.idempotency_key, input.customer_name, input.email, input.phone, JSON.stringify(input.shipping_address), JSON.stringify(lines), subtotal, shipping, subtotal + shipping, input.note, settings.currency || 'USD', selectedProvider, selectedProvider === 'manual' ? 'unpaid' : 'pending', customerSession?.id || null, clean(input.legal_name, 120) || customerSession?.legal_name || '', shippingQuote.shipping_status, input.consent_analytics_at ? new Date(String(input.consent_analytics_at)) : null, input.cart_nonce]
+            [id, number, input.idempotency_key, input.customer_name, input.email, input.phone, JSON.stringify(input.shipping_address), JSON.stringify(lines), subtotal, shipping, subtotal + shipping, input.note, settings.currency || 'USD', selectedProvider, selectedProvider === 'manual' ? 'unpaid' : 'pending', customerSession?.id || null, clean(input.legal_name, 120) || customerSession?.legal_name || '', shippingQuote.shipping_status, consentAt ? new Date(String(consentAt)) : null, input.cart_nonce]
           );
           await client.query('INSERT INTO shop_order_events (order_id, action, detail) VALUES ($1,$2,$3::jsonb)', [id, 'created', JSON.stringify({ total_cents: subtotal + shipping, shipping_status: shippingQuote.shipping_status, shipping_breakdown: shippingQuote.breakdown })]);
           return { ...inserted.rows[0], payment_customer_id: customerSession?.payment_customer_id || '' };
@@ -1103,6 +1105,8 @@ export function createCommerceRouter({ store, bodyJson, json, verifySession, ver
         const saved = await store.query('UPDATE shop_settings SET storefront_content=$1::jsonb,updated_at=now() WHERE id=1 RETURNING storefront_content', [serialized]);
         await auditEvent(req, 'commerce.storefront.updated', 'storefront-content', '1', { keys: Object.keys(content) });
         scheduleStorefrontTranslation();
+        // 前台内容在构建期注入，保存后必须重建，否则运营改了看不见。
+        requestRebuild?.('storefront-content');
         json(res, 200, { data: saved.rows[0]?.storefront_content || {} }); return true;
       }
       if (pathname === '/site-admin-api/commerce/seo' && req.method === 'GET') {
@@ -1117,6 +1121,7 @@ export function createCommerceRouter({ store, bodyJson, json, verifySession, ver
         await saveStorefrontSeo(content, seo);
         await auditEvent(req, 'commerce.seo.updated', 'storefront-seo', '1', { pages: Object.keys(seo.pages) });
         scheduleStorefrontTranslation();
+        requestRebuild?.('storefront-seo');
         json(res, 200, { data: seo });
         return true;
       }

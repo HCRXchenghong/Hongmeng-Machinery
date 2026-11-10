@@ -2,6 +2,10 @@
   <div class="workspace">
     <!-- 两个来源，两个视图：会话询盘（引擎 conversations）/ 表单线索（官网 site_leads）。 -->
     <a-page-header :show-back="false" title="会话与询盘" subtitle="在线会话、表单留言与访客需求" />
+    <!-- 后台只做监控与转接，打字回复在客服 App 里进行；不写清楚运营会以为页面坏了。 -->
+    <a-alert type="info" class="workspace-alert">
+      这里可以查看会话、转接给客服、结束会话；回复客户请用「宏盟客服」App（坐席账号见客服成员）。
+    </a-alert>
     <a-tabs
       v-model:active-key="activeTab"
       class="workspace-tabs"

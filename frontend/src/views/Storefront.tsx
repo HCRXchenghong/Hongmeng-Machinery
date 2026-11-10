@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Headphones, Menu, Minus, PackageCheck, Plus, Search, ShieldCheck, ShoppingBag, Truck, UserRound, X } from 'lucide-react';
 import { Card, Drawer } from 'flowbite-react';
 import MediaCarousel, { type StoreMedia } from '../components/MediaCarousel';
 import SocialIcon, { SOCIAL_PLATFORM_LABELS, type SocialPlatform } from '../components/SocialIcon';
 import { DEFAULT_POLICIES_AR } from '../i18n/policies-ar';
 import type { CartLine, PaymentProvider, Product } from '../lib/storefront-types';
-import { FORGET_TOKEN_KEY, ensureConsentCookie, primeVisitorId, trackPageview } from '../lib/analytics';
-import { CONSENT_KEY, VISITOR_KEY, clearOptionalIdentifiers, consentState, writeConsent } from '../lib/consent';
+import { FORGET_TOKEN_KEY, primeVisitorId, trackPageview } from '../lib/analytics';
+import { CONSENT_KEY, VISITOR_KEY, clearOptionalIdentifiers } from '../lib/consent';
 import {
   formatMoney,
   localizedServerMessage,
@@ -289,13 +289,10 @@ export default function Storefront({ mode, locale = 'en', initialCopy = null, in
   const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
   const [shippingQuoteError, setShippingQuoteError] = useState('');
   const [forgetState, setForgetState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
-  const [gateOpen, setGateOpen] = useState(false);
   const [saveForm, setSaveForm] = useState({ email: '', code: '', password: '' });
   const [saveState, setSaveState] = useState<'idle' | 'sending' | 'sent' | 'busy' | 'done' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [saveCooldown, setSaveCooldown] = useState(0);
-  const gateAction = useRef<(() => void) | null>(null);
-  const gateTrigger = useRef<HTMLElement | null>(null);
   const [category, setCategory] = useState('All');
   const [settings, setSettings] = useState(() => {
     const defaults = { shipping_mode: 'quote' as 'quote' | 'flat', shipping_cents: 0, shipping_zones: [] as Array<{ countries: string[]; mode: 'quote' | 'flat'; amount_cents: number; active: boolean }>, checkout_enabled: true, support_email: '', currency: 'USD' as 'USD' | 'CNY', payment_provider: 'manual' as PaymentProvider, payment_configured: false, payment_methods: ['manual'] as PaymentProvider[], quote_payment_methods: [] as PaymentProvider[] };
@@ -468,13 +465,7 @@ export default function Storefront({ mode, locale = 'en', initialCopy = null, in
     }
   }
 
-  /** 没同意分析 Cookie 时，加入购物车与提交订单都要先过这道闸。 */
-  function requireConsent(action: () => void) {
-    if (consentState() === 'granted') { action(); return; }
-    gateAction.current = action;
-    gateTrigger.current = document.activeElement as HTMLElement | null;
-    setGateOpen(true);
-  }
+  /** 只有拿到真正的同意记录时才带时间戳；没同意就不带，订单照常提交。 */
   /** 同意记录里的时间就是授权时刻；用作下单的同意凭据。 */
   function consentGivenAt() {
     try {
@@ -484,37 +475,6 @@ export default function Storefront({ mode, locale = 'en', initialCopy = null, in
       return '';
     }
   }
-  function closeGate() {
-    setGateOpen(false);
-    gateAction.current = null;
-    gateTrigger.current?.focus?.();
-  }
-  async function allowAndContinue() {
-    const action = gateAction.current;
-    gateAction.current = null;
-    setGateOpen(false);
-    writeConsent({ analytics: true, marketing: false });
-    // 先等埋点回应把 HttpOnly 同意 Cookie 种下来，再继续下单：这样订单走的是服务端签名凭据，不是前端时间戳。
-    await ensureConsentCookie();
-    action?.();
-  }
-  useEffect(() => {
-    if (!gateOpen) return;
-    document.body.classList.add('hm-gate-locked');
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); closeGate(); return; }
-      if (event.key !== 'Tab') return;
-      // 焦点圈在弹窗里，Tab 不会跑到后面的表单上。
-      const focusable = [...document.querySelectorAll<HTMLElement>('.hm-gate-card button, .hm-gate-card a[href]')];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); document.body.classList.remove('hm-gate-locked'); };
-  }, [gateOpen]);
 
   useEffect(() => {
     let active = true;
@@ -832,23 +792,12 @@ export default function Storefront({ mode, locale = 'en', initialCopy = null, in
     if (!cartCurrencyValid) return setCheckoutError('The cart currency does not match the store currency. Please contact us for help.');
     if (!paymentReady) return setCheckoutError('The selected payment method is not ready. Refresh the page or contact support.');
     setCheckoutError('');
-    // 等到确实能提交了才问同意：避免先允许了却因为别的原因提交不出去。
-    if (consentState() !== 'granted') {
-      requireConsent(() => { void submitOrder(); });
-      return;
-    }
     setSubmitting(true);
     try {
       let key = localStorage.getItem(IDEMPOTENCY_KEY);
       if (!key) { key = newOrderKey(); localStorage.setItem(IDEMPOTENCY_KEY, key); }
       const response = await fetch(`${API}/site-admin-api/shop/orders`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer, shipping_address: customer, note: customer.note, items: cart, payment_provider: checkoutProvider, idempotency_key: key, expected_total_cents: total, consent_analytics_at: consentGivenAt(), cart_nonce: cartNonce() }) });
       const payload = await response.json();
-      if (response.status === 428) {
-        setSubmitting(false);
-        setCheckoutError('');
-        requireConsent(() => { void submitOrder(); });
-        return;
-      }
       if (!response.ok) throw new Error(localizedServerMessage(locale, payload.error?.message, 'Order could not be submitted'));
       if (payload.data.checkout_url) { location.assign(payload.data.checkout_url); return; }
       setSaveForm((value) => ({ ...value, email: customer.email }));
@@ -930,7 +879,6 @@ export default function Storefront({ mode, locale = 'en', initialCopy = null, in
     {['privacy', 'cookies', 'terms', 'shipping', 'returns'].includes(mode) && <section className="hm-legal-page hm-section"><div className="hm-page-heading"><span className="hm-eyebrow">HONGMENG MACHINERY / LEGAL</span><h1>{({ privacy: 'Privacy Policy', cookies: 'Cookie Policy', terms: 'Sales Terms', shipping: 'Shipping Policy', returns: 'Returns and Refunds' } as Record<string, string>)[mode]}</h1><p>Last updated: October 22, 2026</p></div><article className="hm-legal-copy"><pre>{mode === 'privacy' ? policies.privacy_policy : mode === 'cookies' ? policies.cookie_policy : mode === 'terms' ? policies.terms_policy : mode === 'shipping' ? policies.shipping_policy : policies.returns_policy}</pre>{mode === 'privacy' && <div id="privacy-choices" className="hm-privacy-choice-card"><div className="hm-privacy-choice-content"><span className="hm-eyebrow">YOUR CONTROL</span><h2>Manage privacy choices</h2><p>Choose whether we may remember this browser, or delete what is already stored.</p><p className="hm-privacy-choice-note">To make a privacy request or ask about order information, contact us. You do not need an account.</p><a href="/contact/">Contact Hongmeng Machinery</a></div><div className="hm-privacy-choice-actions"><button className="hm-button hm-button-blue hm-privacy-choice-action" type="button" onClick={() => window.dispatchEvent(new CustomEvent('hongmeng:open-cookie-settings'))}>Cookie settings</button><button className="hm-button hm-privacy-choice-action hm-privacy-choice-delete" type="button" onClick={forgetMyData} disabled={forgetState === 'busy'}>{forgetState === 'busy' ? 'Deleting…' : 'Delete stored data'}</button>{forgetState === 'done' && <p className="hm-privacy-choice-status" role="status">Stored identifiers and visit records for this browser were deleted.</p>}{forgetState === 'error' && <p className="hm-privacy-choice-status hm-error" role="alert">Deletion failed. Please try again.</p>}</div></div>}</article></section>}
       {mode === 'returns' && <section className="hm-refund-request"><div className="hm-page-heading"><span className="hm-eyebrow">REFUND REQUEST</span><h2>Request a refund</h2><p>Use the order number and the phone number on the original order. Our team will review the request before any refund is issued.</p></div><form className="hm-refund-form" onSubmit={submitRefundRequest}><label>Order number<input required maxLength={80} value={refundForm.order_number} onChange={(event) => setRefundForm({ ...refundForm, order_number: event.target.value })} placeholder="HM20261021-XXXXXXXX" /></label><label>Contact phone<input required maxLength={80} value={refundForm.phone} onChange={(event) => setRefundForm({ ...refundForm, phone: event.target.value })} placeholder="Phone used for this order" /></label><label>Refund reason<textarea required minLength={5} maxLength={1200} rows={4} value={refundForm.reason} onChange={(event) => setRefundForm({ ...refundForm, reason: event.target.value })} placeholder="Tell us what happened and why you are requesting a refund." /></label>{refundError && <p className="hm-error" role="alert">{refundError}</p>}<button type="submit" className="hm-button hm-button-blue" disabled={refundSubmitting}>{refundSubmitting ? 'Submitting…' : 'Submit refund request'}</button></form></section>}
       {refundSubmitted && <div className="hm-modal-backdrop" role="dialog" aria-modal="true" aria-label="Refund request submitted"><div className="hm-modal-card"><span className="hm-eyebrow">REQUEST RECEIVED</span><h2>Refund request submitted</h2><p>We received your refund request. Our team will review it and contact you using the phone number you provided.</p><button type="button" className="hm-button hm-button-blue" onClick={() => { setRefundSubmitted(false); setRefundForm({ order_number: '', phone: '', reason: '' }); }}>Close</button></div></div>}
-      {gateOpen && <div className="hm-gate-backdrop" role="dialog" aria-modal="true" aria-labelledby="hm-gate-title" aria-describedby="hm-gate-desc"><div className="hm-gate-card"><button type="button" className="hm-gate-close" aria-label="Close consent reminder" onClick={closeGate}><X size={18} /></button><span className="hm-eyebrow">COOKIE CONSENT</span><h2 id="hm-gate-title">Allow cookies to continue</h2><p id="hm-gate-desc">We need your consent before the order can be submitted: your cart, order and contact details stay in this browser, and we only add our own anonymous statistics — no advertising trackers. You can withdraw it later in Cookie settings.</p><button type="button" className="hm-button hm-button-blue hm-gate-allow" onClick={allowAndContinue} autoFocus>Allow and continue</button><p className="hm-gate-note">Prefer to read first? <a href="/cookies/">Cookie policy</a></p></div></div>}
     </main>
     <footer className="hm-footer"><div><a className="hm-footer-brand" href="/">{site.brandName || 'Hongmeng Machinery'} <small>{site.brandTagline || 'HONGMENG MACHINERY'}</small></a><p>{pageCopy.footer?.description || site.footer?.description || 'Equipment attachments and support for demanding work.'}</p>{socialLinks.length > 0 && <div className="hm-footer-social">{socialLinks.map(({ platform, label, href }) => <a key={platform} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}><SocialIcon platform={platform} /></a>)}</div>}</div><div><h4>{site.footer?.quickLinksTitle || 'Quick links'}</h4><a href="/shop/">{pageCopy.footer?.productsLabel || 'Shop attachments'}</a><a href="/about/">{pageCopy.footer?.aboutLabel || 'About'}</a><a href="/news/">{pageCopy.footer?.newsLabel || 'News and updates'}</a></div><div><h4>{site.footer?.supportTitle || 'Customer service'}</h4><a href="/contact/">{pageCopy.footer?.contactLabel || 'Contact'}</a><a href="/account/">{pageCopy.footer?.accountLabel || 'My account'}</a><a href="/cart/">{pageCopy.footer?.cartLabel || 'Cart and checkout'}</a></div><div><h4>{pageCopy.footer?.helpTitle || 'Need help?'}</h4><p>{pageCopy.footer?.helpText || 'Contact us about fitment, purchasing, or after-sales support.'}</p>{settings.support_email && <a href={`mailto:${settings.support_email}`}>{settings.support_email}</a>}<a href="/privacy/">{pageCopy.footer?.privacyLabel || 'Privacy policy'}</a><a href="/cookies/">{pageCopy.footer?.cookieLabel || 'Cookie policy'}</a><a href="/terms/">{pageCopy.footer?.termsLabel || 'Sales terms'}</a><a href="/shipping/">{pageCopy.footer?.shippingLabel || 'Shipping policy'}</a><a href="/returns/">{pageCopy.footer?.returnsLabel || 'Returns and refunds'}</a></div><div className="hm-footer-bottom">© {new Date().getFullYear()} {site.brandName || 'Hongmeng Machinery'} · HONGMENG MACHINERY</div></footer>
     {cartOpen && <Drawer open onClose={() => setCartOpen(false)} position="right" className="hm-drawer hm-flowbite-drawer" theme={{ root: { backdrop: 'hm-drawer-backdrop' } }}><div className="hm-drawer-heading"><h2>Cart <small>({count})</small></h2><button type="button" aria-label="Close cart" onClick={() => setCartOpen(false)}><X size={22} /></button></div><CartContents cart={cart} products={products} locale={locale} update={updateCart} emptyMedia={pageCopy.cart?.emptyMedia} onClose={() => setCartOpen(false)} checkoutLink /></Drawer>}

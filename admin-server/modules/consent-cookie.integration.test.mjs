@@ -96,9 +96,10 @@ test('同意凭据：埋点下发 HttpOnly 签名 Cookie，坏 Cookie 不 500，
       headers: { 'Content-Type': 'application/json', Origin: ORIGIN, ...headers },
       body: JSON.stringify(orderBody(`consent-${Math.random()}`))
     });
-    assert.equal((await postOrder({})).status, 428, '没有凭据也没有时间戳必须拒绝');
-    assert.notEqual((await postOrder({ Cookie: consentCookie })).status, 428, '签名 Cookie 应当被接受');
-    assert.equal((await postOrder({ Cookie: `${consentCookie}x` })).status, 428, '坏签名不算数，没有时间戳就继续拒绝');
+    // 必要存储不需要分析同意：没有凭据也必须能下单，只是不会记录同意时间。
+    assert.notEqual((await postOrder({})).status, 428, '没有分析同意也应能下单');
+    assert.notEqual((await postOrder({ Cookie: consentCookie })).status, 428, '签名 Cookie 仍可记录同意');
+    assert.notEqual((await postOrder({ Cookie: `${consentCookie}x` })).status, 428, '坏签名不应拦住下单');
   } finally {
     server.kill();
   }

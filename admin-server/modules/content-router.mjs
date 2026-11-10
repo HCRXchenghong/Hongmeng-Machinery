@@ -1,5 +1,5 @@
 /** 官网内容与降级版本的 HTTP 边界。内容的读写规则通过依赖注入，避免耦合认证和媒体实现。 */
-export function createContentRouter({
+export function createContentRouter({ requestRebuild,
   bodyJson,
   json,
   verifySession,
@@ -150,6 +150,8 @@ export function createContentRouter({
           saved?.id || saved?.slug || '',
           isLead ? { status: saved?.status, priority: saved?.priority } : { section: payload.section }
         );
+        // 内容参与构建期渲染，保存后重建前台，运营才能立刻看到。
+        if (!isLead) requestRebuild?.('site-content');
         json(res, 200, { data: await getBootstrap(), meta: { savedAt: new Date().toISOString(), saved } });
       } catch (error) {
         json(res, error.code === 'CONTENT_REVISION_CONFLICT' ? 409 : 400, { error: { message: error.message || '保存失败。' } });

@@ -324,7 +324,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import MediaPicker from '@/components/content/MediaPicker.vue';
 import MediaSequenceEditor from '@/components/content/MediaSequenceEditor.vue';
-import { createProduct, getIntegrationStatus, getPolicies, getSettings, getStorefrontContent, listCustomers, listOrders, listProducts, refundOrder, updateIntegrations, updateOrder, updatePolicies, updateProduct, updateSettings, updateStorefrontContent } from '@/api/commerce';
+import { createProduct, getIntegrationStatus, getPolicies, getSettings, getStorefrontContent, listCustomers, listOrders, listProducts, refundOrder, updateCustomer, updateIntegrations, updateOrder, updatePolicies, updateProduct, updateSettings, updateStorefrontContent } from '@/api/commerce';
 import type { ShopCustomer, ShopOrder, ShopProduct } from '@/api/commerce';
 
 type CommerceSection = 'products' | 'orders' | 'customers' | 'settings' | 'integrations' | 'policies' | 'content';

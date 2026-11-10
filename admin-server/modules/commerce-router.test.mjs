@@ -339,7 +339,7 @@ test('游客也能提交报价类订单，并记录同意时间戳', async () =>
   assert.equal(new Date(inserts[0][18]).toISOString(), consentAt);
 });
 
-test('下单必须带同意凭据：缺时间戳 428，过期/未来时间也拒绝，签名 Cookie 可替代', async () => {
+test('下单不再强制分析同意：无凭据照常下单，只在不合规时丢弃同意时间', async () => {
   const run = async (body, cookie) => {
     const { router, replies } = routerFor(body, async (sql, params) => {
       if (sql.includes('FROM shop_orders WHERE idempotency_key')) return { rows: [] };
@@ -356,14 +356,15 @@ test('下单必须带同意凭据：缺时间戳 428，过期/未来时间也拒
     return replies[0]?.status;
   };
   const bare = { ...validOrder(), consent_analytics_at: undefined };
-  assert.equal(await run(bare), 428);
-  assert.equal(await run({ ...bare, consent_analytics_at: new Date(Date.now() - 13 * 3600_000).toISOString() }), 428);
-  assert.equal(await run({ ...bare, consent_analytics_at: new Date(Date.now() + 30 * 60_000).toISOString() }), 428);
+  // 必要存储属于履约必需：没有分析同意也必须能下单。
+  assert.notEqual(await run(bare), 428, '拒绝可选 Cookie 不应拦住下单');
+  assert.notEqual(await run({ ...bare, consent_analytics_at: new Date(Date.now() - 13 * 3600_000).toISOString() }), 428);
+  assert.notEqual(await run({ ...bare, consent_analytics_at: new Date(Date.now() + 30 * 60_000).toISOString() }), 428);
 
   const cookie = `hm_consent=${signConsent('vis_test')}`;
-  assert.notEqual(await run(bare, cookie), 428, '签名 Cookie 应视为已同意');
-  assert.notEqual(await run(validOrder(), `hm_consent=${signConsent('vis_test')}x`), 428, '坏签名应退回时间戳判定');
-  assert.equal(await run(bare, 'hm_consent=vis_x.123.bad'), 428);
+  assert.notEqual(await run(bare, cookie), 428, '签名 Cookie 仍可用于记录同意时间');
+  assert.notEqual(await run(validOrder(), `hm_consent=${signConsent('vis_test')}x`), 428);
+  assert.notEqual(await run(bare, 'hm_consent=vis_x.123.bad'), 428);
 });
 
 test('同一购物车批次重复提交返回原单，换了批次号则算新单', async () => {
