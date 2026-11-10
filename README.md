@@ -153,6 +153,15 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 ## 运维
 
+几个自带的自检脚本（都在 `npm run` 里）：
+
+| 命令 | 用途 |
+| --- | --- |
+| `npm run verify` | 全量检查（11 项：语法、契约、单测、构建、Go、compose、Caddy、真实 PG 集成） |
+| `npm run verify:console` | 后台全页面巡检，需要 `HONGMENG_ADMIN_COOKIE_FILE` 指向一个真实会话文件 |
+| `npm run verify:ai-failover` | AI 供应商故障转移与熔断（需要真实上游 Key） |
+| `npm run verify:ai-persistence` | AI 配置重启后仍在（before/after 两阶段，中间要真重启引擎） |
+
 部署前想确认反向代理规则没被改坏：先跑起本地开发栈，再执行 `scripts/verify-caddy-routes.sh`。它会用生产 Caddyfile 起一个临时容器（内部 CA），逐个验证官网/后台/客服三个域名的转发、站点地图重写、媒体路径与安全响应头，失败即退出非零。
 
 **备份**：一键脚本在健康检查全绿后才写入每日 02:00 的 cron，产物在 `/opt/hongmeng-machinery/.deploy/backups`（`pg_dump` gzip + `.sha256`），默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`，该前缀为历史变量名）。

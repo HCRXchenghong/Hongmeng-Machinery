@@ -11,7 +11,7 @@
  *      或 not-found 页面糊弄过去。
  *
  * 用法：
- *   ASTREVA_ADMIN_COOKIE_FILE=/tmp/astreva-admin-session.txt \
+ *   HONGMENG_ADMIN_COOKIE_FILE=/tmp/hongmeng-admin-session.txt \
  *     node scripts/verify-console-pages.mjs [--base http://127.0.0.1:1338] [--headed]
  *
  * 会话从哪来：本地可用一个真实会话（例如由运维写入的 600 权限文件）。脚本不会伪造签名、
@@ -32,7 +32,8 @@ const argValue = (name, fallback) => {
 };
 const BASE = argValue('--base', process.env.HONGMENG_ADMIN_BASE || 'http://127.0.0.1:1338').replace(/\/+$/, '');
 const HEADED = args.includes('--headed');
-const COOKIE_FILE = process.env.ASTREVA_ADMIN_COOKIE_FILE || '/tmp/astreva-admin-session.txt';
+// 新环境变量优先，旧的 ASTREVA_* 继续兼容。
+const COOKIE_FILE = process.env.HONGMENG_ADMIN_COOKIE_FILE || process.env.ASTREVA_ADMIN_COOKIE_FILE || '/tmp/hongmeng-admin-session.txt';
 const CHROME = process.env.ASTREVA_CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 /** 从路由模块里抽出「可见」路由：模块 path + 子 path，跳过 hideInMenu。 */
@@ -69,7 +70,12 @@ function discoverRoutes() {
 }
 
 function readCookie() {
-  if (!fs.existsSync(COOKIE_FILE)) return '';
+  if (!fs.existsSync(COOKIE_FILE)) {
+    console.error(`找不到会话文件：${COOKIE_FILE}`);
+    console.error('先登录一次后台并把会话 cookie 写到该文件（形如 hongmeng_admin_session=...），或用 ASTREVA_ADMIN_COOKIE_FILE 指定路径。');
+    console.error('没有会话时每一页都会被弹回登录页，跑出来的 FAIL 没有参考价值，因此直接退出。');
+    process.exit(2);
+  }
   const raw = fs.readFileSync(COOKIE_FILE, 'utf8').trim();
   const pair = raw.split(';')[0];
   const index = pair.indexOf('=');
@@ -82,6 +88,16 @@ if (!routes.length) {
   process.exit(2);
 }
 const cookie = readCookie();
+
+// 会话过期时所有页面都会跳登录页，直接给出结论比刷 26 行 FAIL 有用。
+{
+  const probe = await fetch(`${BASE}/site-admin-api/system/health`, { headers: { cookie: `${cookie.name}=${cookie.value}` } }).catch(() => null);
+  if (!probe || probe.status === 401) {
+    console.error(`会话无效（/site-admin-api/system/health 返回 ${probe ? probe.status : '连接失败'}）：${COOKIE_FILE}`);
+    console.error('重新登录一次后台并更新该文件后再跑。');
+    process.exit(2);
+  }
+}
 if (!cookie) {
   console.error(`缺少管理员会话：${COOKIE_FILE} 不存在或为空。`);
   console.error('提示：本地可由运维写入一个真实会话文件（600 权限），然后重跑。');
