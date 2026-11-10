@@ -23,6 +23,31 @@ const containsArabic = (value: unknown): boolean => {
   return false;
 };
 
+
+/**
+ * 按语言挑字段：英文/阿语站不能用中文文案，但也不能因为某一个字段是中文
+ * 就把整份 CMS 内容丢掉（历史行为：英文站的公告、SEO 会静默失效）。
+ */
+function omitStringsNotIn(value: unknown, keep: (text: string) => boolean): unknown {
+  // 站内路径与外链是语言中性的，任何语言都要保留。
+  if (typeof value === 'string') return keep(value) || /^(\/|https?:\/\/)/.test(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    const items = value.map((item) => omitStringsNotIn(item, keep)).filter((item) => item !== undefined);
+    return items.length ? items : undefined;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const kept = omitStringsNotIn(item, keep);
+      if (kept !== undefined) out[key] = kept;
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+  return value;
+}
+
+const isEnglishCopy = (text: string) => !hasChinese(text) && !hasArabic(text);
+
 const API = String(import.meta.env.PUBLIC_ADMIN_URL || 'http://127.0.0.1:1338').replace(/\/$/, '');
 const cache = new Map<Locale, Promise<StorefrontBootstrap>>();
 
@@ -58,9 +83,9 @@ export async function loadStorefrontBootstrap(locale: Locale): Promise<Storefron
     const sourceCopy = storefront?.data;
     let copy: Record<string, unknown> | null = null;
     if (ready?.storefront) copy = ready.storefront;
-    else if (locale === 'en' && sourceCopy && !containsChinese(sourceCopy) && !containsArabic(sourceCopy)) copy = sourceCopy;
+    else if (locale === 'en' && sourceCopy) copy = omitStringsNotIn(sourceCopy, isEnglishCopy) as Record<string, unknown> | null;
     else if (locale === 'zh-CN' && containsChinese(sourceCopy)) copy = sourceCopy;
-    else if (locale === 'ar' && containsArabic(sourceCopy)) copy = sourceCopy;
+    else if (locale === 'ar' && sourceCopy) copy = omitStringsNotIn(sourceCopy, hasArabic) as Record<string, unknown> | null;
 
     // Social profile URLs are language-neutral and must survive the
     // "CMS copy is not in this language" branch above.
