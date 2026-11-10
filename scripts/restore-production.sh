@@ -24,6 +24,25 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="$ROOT_DIR/deployments/ubuntu"
 ENV_FILE="${ASTREVA_UBUNTU_ENV:-$DEPLOY_DIR/.env.ubuntu}"
 COMPOSE_FILE="$DEPLOY_DIR/docker-compose.ubuntu.yml"
+
+# compose 会校验整份环境文件的必填变量。旧版本的 .env.ubuntu 可能缺少后来新增的项，
+# 直接跑 compose 只会抛出难懂的插值错误，这里先给出可执行的修复提示。
+require_env_keys() {
+  local missing=()
+  local key
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    if ! grep -Eq "^[[:space:]]*${key}=.+" "$ENV_FILE" 2>/dev/null; then
+      missing+=("$key")
+    fi
+  done < <(grep -oE '\$\{[A-Z0-9_]+:\?' "$COMPOSE_FILE" | sed -E 's/^\$\{//; s/:\?$//' | sort -u)
+  if ((${#missing[@]})); then
+    echo "环境文件缺少必填项：${missing[*]}" >&2
+    echo "修法：重新运行 scripts/deploy-one-click.sh（会补齐缺失变量），或手工在 $ENV_FILE 中补上。" >&2
+    exit 1
+  fi
+}
+
 DEFAULT_TARGET_DB="customer_service_restore"
 
 TARGET_DB="$DEFAULT_TARGET_DB"
@@ -125,6 +144,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "未找到生产环境文件：$ENV_FILE" >&2
   exit 1
 fi
+require_env_keys
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "未找到 Compose 文件：$COMPOSE_FILE" >&2
   exit 1
