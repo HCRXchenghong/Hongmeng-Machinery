@@ -15,8 +15,23 @@ export default function ChatWidget({ serviceBridgeUrl = '', serviceBridgeApiUrl 
   const [forget, setForget] = useState(false);
   const iframe = useRef<HTMLIFrameElement>(null);
   const src = useMemo(() => {
-    const base = (serviceBridgeUrl || import.meta.env.PUBLIC_SERVICEBRIDGE_URL || 'http://127.0.0.1:5175').replace(/\/$/, '');
-    const apiBase = (serviceBridgeApiUrl || import.meta.env.PUBLIC_SERVICEBRIDGE_API_URL || 'http://127.0.0.1:8081').replace(/\/$/, '');
+    // 构建时没注入 PUBLIC_SERVICEBRIDGE_* 会回落成 127.0.0.1，局域网/线上访客就看不到客服窗口。
+    // 这里做一次兜底改写：回落的 host 若指向本机、而页面不是从本机打开的，就换成页面自己的 host。
+    const pageHost = typeof window === 'undefined' ? '' : window.location.hostname;
+    const rewriteLocalhost = (value: string) => {
+      try {
+        const parsed = new URL(value);
+        const local = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+        if (local && pageHost && pageHost !== '127.0.0.1' && pageHost !== 'localhost') {
+          parsed.hostname = pageHost;
+        }
+        return parsed.toString().replace(/\/$/, '');
+      } catch {
+        return value;
+      }
+    };
+    const base = rewriteLocalhost((serviceBridgeUrl || import.meta.env.PUBLIC_SERVICEBRIDGE_URL || 'http://127.0.0.1:5175').replace(/\/$/, ''));
+    const apiBase = rewriteLocalhost((serviceBridgeApiUrl || import.meta.env.PUBLIC_SERVICEBRIDGE_API_URL || 'http://127.0.0.1:8081').replace(/\/$/, ''));
     const url = new URL(base);
     url.searchParams.set('embed', '1');
     url.searchParams.set('lang', htmlLang(locale));

@@ -43,7 +43,9 @@
     "typecheck": "npm --workspace frontend run typecheck",
     "verify:ai-failover": "node scripts/verify-ai-failover.mjs",
     "verify:ai-persistence": "node scripts/verify-ai-persistence.mjs",
-    "verify:console": "node scripts/verify-console-pages.mjs"
+    "verify:console": "node scripts/verify-console-pages.mjs",
+    "verify:clicks": "node scripts/verify-click-flows.mjs",
+    "verify:clicks:admin": "node scripts/verify-click-admin.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.62.1"

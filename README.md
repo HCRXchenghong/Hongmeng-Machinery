@@ -158,6 +158,8 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 | 命令 | 用途 |
 | --- | --- |
 | `npm run verify` | 全量检查（11 项：语法、契约、单测、构建、Go、compose、Caddy、真实 PG 集成） |
+| `npm run verify:clicks` | 官网/商城**点击验收**：导航、搜索、详情、加购、购物车、询盘、手机菜单、下单、登录、地址增删改、退出、客服挂件 |
+| `npm run verify:clicks:admin` | 后台**点击验收**：新增商品并下架、客户资料改名、订单详情保存、素材上传删除、SMTP 保存、系统日志、语言包切换 |
 | `npm run verify:console` | 后台全页面巡检，需要 `HONGMENG_ADMIN_COOKIE_FILE` 指向一个真实会话文件 |
 | `npm run verify:ai-failover` | AI 供应商故障转移与熔断（需要真实上游 Key） |
 | `npm run verify:ai-persistence` | AI 配置重启后仍在（before/after 两阶段，中间要真重启引擎） |
