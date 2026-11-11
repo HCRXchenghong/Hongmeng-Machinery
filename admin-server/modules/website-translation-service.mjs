@@ -522,6 +522,36 @@ export function createWebsiteTranslationService({ platformStore, fetchImpl = fet
     queueMicrotask(drain);
   }
 
+
+  /**
+   * 把「原文 → 译文」映射交给 AI 批量翻译（语言包补缺用）。
+   * 与内容翻译共用同一套上游配置与限流，失败时抛出带 code 的错误供路由区分 409/502。
+   */
+  async function translateKeyValues(locale, entries) {
+    const pairs = Object.entries(entries || {}).filter(([, value]) => typeof value === 'string' && value.trim());
+    if (!pairs.length) return {};
+    const target = locale === 'zh-CN' ? '简体中文' : locale === 'ar' ? '阿拉伯语（现代标准阿拉伯语）' : locale;
+    const result = {};
+    const batchSize = 40;
+    for (let index = 0; index < pairs.length; index += batchSize) {
+      const batch = pairs.slice(index, index + batchSize);
+      const prompt = [
+        `把下面的英文界面词条翻译成${target}，用于工程机械属具 B2B 网站。`,
+        '要求：术语统一、简洁、符合电商与工业品语境；保留占位符（如 {name}、{count}）与标点结构；不要输出解释。',
+        '只输出 JSON 数组，元素形如 {"key":"原文","value":"译文"}，必须覆盖输入的全部 key。',
+        '输入：',
+        JSON.stringify(batch.map(([key]) => key))
+      ].join('\n');
+      const list = await generateJson(prompt, { system: '你是严格的商业网站本地化引擎，只输出 JSON 数组。', capability: 'translation' });
+      for (const item of Array.isArray(list) ? list : []) {
+        const key = String(item?.key || '').trim();
+        const value = String(item?.value || '').trim();
+        if (key && value) result[key] = value;
+      }
+    }
+    return result;
+  }
+
   return {
     locales: TARGET_LOCALES,
     publicSettings,
@@ -533,6 +563,7 @@ export function createWebsiteTranslationService({ platformStore, fetchImpl = fet
       const progress = progressByLocale.get(item.locale);
       return { ...item, progress: progress ? { ...progress } : null };
     }),
-    read: (locale) => platformStore.readContentTranslation(locale)
+    read: (locale) => platformStore.readContentTranslation(locale),
+    translateKeyValues
   };
 }

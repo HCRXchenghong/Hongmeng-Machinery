@@ -98,6 +98,21 @@ export async function withSnapshotContentApi(snapshot, callback, options = {}) {
     } catch {
       parsed = null;
     }
+    if (parsed?.pathname === '/site-admin-api/public-language-pack') {
+      const locale = parsed.searchParams.get('locale') || 'zh-CN';
+      try {
+        const upstream = apiBase
+          ? await fetch(`${apiBase}/site-admin-api/public-language-pack?locale=${encodeURIComponent(locale)}`, { headers: { 'Cache-Control': 'no-store' } })
+          : null;
+        const body = upstream ? await upstream.text() : '{"data":{"entries":{}}}';
+        res.writeHead(upstream?.ok ? 200 : 502, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+      } catch (error) {
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: { message: error.message } }));
+      }
+      return;
+    }
     if (req.method !== 'GET' || parsed?.pathname !== '/site-admin-api/public-content') {
       res.writeHead(404);
       res.end('not found');
@@ -167,6 +182,7 @@ async function publishPreview(distDir, publishDir) {
 
 export async function buildFrontend(options = {}) {
   const isPreview = options.target === 'preview';
+  // 语言包由 npm run build:frontend 的 prebuild 步骤（scripts/ensure-language-pack.mjs）注入。
   // 商城前端的页面内容独立于原 CMS，仅依赖公开的商品、订单与咨询 API。
   await run('npm', ['run', 'build:frontend'], {
     env: { ...process.env, PUBLIC_ADMIN_URL: process.env.PUBLIC_ADMIN_URL || 'http://127.0.0.1:1338' }

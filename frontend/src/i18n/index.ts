@@ -9,15 +9,22 @@ import {
 } from 'react';
 import arDictionary from './dictionaries/ar.json';
 import zhDictionary from './dictionaries/zh-CN.json';
+// 构建期由 scripts/build-frontend.mjs 写入：后台「语言包」覆盖内置词典。
+import generatedPack from './generated-pack.json';
 import { englishServerMessage } from './server-messages';
 
 export type Locale = 'en' | 'zh-CN' | 'ar';
 
 export const SUPPORTED_LOCALES: Locale[] = ['en', 'zh-CN', 'ar'];
 
+const pack = generatedPack as Record<string, Record<string, string>>;
+const withPack = (base: Record<string, string>, overrides?: Record<string, string>) => (
+  overrides && Object.keys(overrides).length ? { ...base, ...overrides } : base
+);
+
 const dictionaries: Record<Exclude<Locale, 'en'>, Record<string, string>> = {
-  'zh-CN': zhDictionary as Record<string, string>,
-  ar: arDictionary as Record<string, string>
+  'zh-CN': withPack(zhDictionary as Record<string, string>, pack['zh-CN']),
+  ar: withPack(arDictionary as Record<string, string>, pack.ar)
 };
 
 /**

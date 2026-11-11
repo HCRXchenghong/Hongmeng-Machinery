@@ -32,6 +32,7 @@ import { createAIProviderClient } from './modules/ai-provider-client.mjs';
 import { createWebsiteTranslationService } from './modules/website-translation-service.mjs';
 import { createStorefrontTranslationService } from './modules/storefront-translation-service.mjs';
 import { createWebsiteTranslationRouter } from './modules/website-translation-router.mjs';
+import { createLanguagePackRouter } from './modules/language-pack-router.mjs';
 import { createWebsiteSeoService } from './modules/website-seo-service.mjs';
 import { createAnalyticsRouter, createVisitorActivityForwarder, detectDanger } from './modules/analytics-router.mjs';
 import { createSystemRouter } from './modules/system-router.mjs';
@@ -1275,6 +1276,17 @@ const handleWebsiteTranslation = createWebsiteTranslationRouter({
   applyPublicCors: applyPublicContentCors
 });
 
+const handleLanguagePack = createLanguagePackRouter({
+  bodyJson,
+  json,
+  verifySession,
+  platformStore,
+  auditEvent,
+  translationService,
+  rootDir: ROOT,
+  requestRebuild: (source) => { publishService.requestPublish('system', 'current').catch(() => {}); }
+});
+
 const handleWebsiteSeo = createWebsiteSeoRouter({
   bodyJson,
   json,
@@ -1760,7 +1772,7 @@ const handleCustomer = createCustomerRouter({ store: platformStore, bodyJson, js
 
 async function handleAdminApi(req, res, pathname) {
   const adminUrl = new URL(req.url || '/', PUBLIC_ORIGIN);
-  for (const handler of [handleCustomer, handleCommerce, leadsModule.handle, handleContent, handleWebsiteTranslation, handleWebsiteSeo, handleMedia, handlePublish, handleMediaRuntimeSettings, analyticsModule.handleAdmin, handleMailAdmin.handle, systemModule.handle]) {
+  for (const handler of [handleCustomer, handleCommerce, leadsModule.handle, handleContent, handleWebsiteTranslation, handleLanguagePack.handle, handleWebsiteSeo, handleMedia, handlePublish, handleMediaRuntimeSettings, analyticsModule.handleAdmin, handleMailAdmin.handle, systemModule.handle]) {
     if (await handler(req, res, pathname, adminUrl)) return true;
   }
   if (pathname.startsWith('/site-admin-api/servicebridge/')) {

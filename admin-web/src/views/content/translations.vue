@@ -61,11 +61,53 @@
               </a-descriptions-item>
             </a-descriptions>
 
+            <a-divider orientation="left" style="margin: 12px 0">界面词条（语言包）</a-divider>
+            <a-space direction="vertical" style="width: 100%" size="8">
+              <a-radio-group
+                :model-value="packMode(card.locale)"
+                type="button"
+                size="small"
+                :disabled="!isPackLocale(card.locale)"
+                @change="(value: string | number | boolean) => setPackMode(card.locale, String(value))"
+              >
+                <a-radio value="pack">语言包优先</a-radio>
+                <a-radio value="ai">交给 AI / 内置词典</a-radio>
+              </a-radio-group>
+              <a-typography-text type="secondary" style="font-size: 12px">
+                {{ packSummary(card.locale) }}
+              </a-typography-text>
+              <a-space wrap size="6">
+                <a-button size="mini" :loading="seeding === card.locale" :disabled="!isPackLocale(card.locale)" @click="seedPack(card.locale)">从内置词条生成</a-button>
+                <a-button size="mini" :disabled="!isPackLocale(card.locale)" @click="openPack(card.locale)">导入 / 查看</a-button>
+              </a-space>
+            </a-space>
+
             <a-typography-text type="secondary" class="card-hint">{{ card.hint }}</a-typography-text>
           </a-card>
         </a-col>
       </a-row>
     </a-spin>
+
+    <a-modal v-model:visible="packVisible" :title="`界面词条语言包 · ${packLocale}`" :width="760" :footer="false" unmount-on-close>
+      <a-space direction="vertical" style="width: 100%" size="12">
+        <a-alert type="info">
+          粘贴或上传 { "原文": "译文" } 形式的 JSON。保存后会触发官网重建，约 10 秒生效；
+          切换「交给 AI / 内置词典」则忽略语言包、回到内置词条。
+        </a-alert>
+        <a-space wrap>
+          <a-upload :auto-upload="false" :show-file-list="false" accept=".json" @change="onPackFile">
+            <a-button size="small">选择 JSON 文件</a-button>
+          </a-upload>
+          <a-button size="small" :loading="filling === packLocale" @click="aiFill">用 AI 补齐缺失词条</a-button>
+          <a-button size="small" status="danger" :disabled="savingPack" @click="clearPack">清空语言包</a-button>
+        </a-space>
+        <a-textarea v-model="packText" :auto-size="{ minRows: 12, maxRows: 24 }" placeholder='{ "Add to cart": "加入购物车" }' />
+        <a-space>
+          <a-button type="primary" :loading="savingPack" @click="savePack">保存语言包</a-button>
+          <a-typography-text type="secondary">{{ packValidation }}</a-typography-text>
+        </a-space>
+      </a-space>
+    </a-modal>
   </div>
 </template>
 
@@ -86,6 +128,137 @@
     updatedAt?: string | null;
     stale?: boolean;
   };
+
+  type PackInfo = { locale: string; mode: 'pack' | 'ai'; count: number; source: string; updatedAt: string; aiFilled: number };
+  const packs = ref<Record<string, PackInfo>>({});
+  const packVisible = ref(false);
+  const packLocale = ref<'zh-CN' | 'ar'>('zh-CN');
+  const packText = ref('');
+  const packValidation = ref('');
+  const savingPack = ref(false);
+  const seeding = ref('');
+  const filling = ref('');
+
+  const isPackLocale = (locale: Locale) => locale === 'zh-CN' || locale === 'ar';
+  const packMode = (locale: Locale) => (packs.value[locale]?.mode === 'ai' ? 'ai' : 'pack');
+  function packSummary(locale: Locale) {
+    const info = packs.value[locale];
+    if (!info) return '尚未读取语言包状态';
+    if (!info.count) return '暂无语言包条目——可点「从内置词条生成」或导入专业译稿';
+    const modeLabel = info.mode === 'ai' ? '当前交给 AI / 内置词典' : '当前使用语言包';
+    const extra = info.aiFilled ? `，其中 AI 补齐 ${info.aiFilled} 条` : '';
+    return `${modeLabel}：${info.count} 条${extra}，更新于 ${localTime(info.updatedAt)}`;
+  }
+  function applyPackSummary(list: PackInfo[]) {
+    packs.value = Object.fromEntries(list.map((item) => [item.locale, item]));
+  }
+  async function loadPacks() {
+    try {
+      const response = await client.get('/site-admin-api/language-packs');
+      applyPackSummary(response.data?.data?.locales || []);
+    } catch {
+      /* 统一由拦截器提示 */
+    }
+  }
+  async function setPackMode(locale: Locale, mode: string) {
+    if (!isPackLocale(locale)) return;
+    try {
+      const response = await client.patch(`/site-admin-api/language-packs/${locale}/mode`, { mode });
+      applyPackSummary(response.data?.data?.locales || []);
+      Message.success(mode === 'ai' ? '已改为交给 AI / 内置词典，正在重建官网' : '已改为语言包优先，正在重建官网');
+    } catch {
+      /* 统一提示 */
+    }
+  }
+  async function seedPack(locale: Locale) {
+    if (!isPackLocale(locale)) return;
+    seeding.value = locale;
+    try {
+      const response = await client.post(`/site-admin-api/language-packs/${locale}/seed`);
+      applyPackSummary(response.data?.data?.locales || []);
+      Message.success('已用内置词条生成语言包，可继续导入专业译稿覆盖');
+    } catch {
+      /* 统一提示 */
+    } finally {
+      seeding.value = '';
+    }
+  }
+  async function openPack(locale: Locale) {
+    if (!isPackLocale(locale)) return;
+    packLocale.value = locale;
+    packVisible.value = true;
+    packValidation.value = '';
+    try {
+      const response = await client.get(`/site-admin-api/language-packs/${locale}`);
+      const entries = response.data?.data?.entries || {};
+      packText.value = Object.keys(entries).length ? JSON.stringify(entries, null, 2) : '';
+    } catch {
+      packText.value = '';
+    }
+  }
+  function onPackFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      packText.value = String(reader.result || '');
+      packValidation.value = '已读取文件，保存前会自动校验格式';
+    };
+    reader.readAsText(file);
+    return false;
+  }
+  async function savePack() {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(packText.value || '{}');
+    } catch (error: any) {
+      Message.error(`JSON 解析失败：${error.message}`);
+      return;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      Message.error('语言包必须是 { "原文": "译文" } 形式的对象');
+      return;
+    }
+    savingPack.value = true;
+    try {
+      const response = await client.put(`/site-admin-api/language-packs/${packLocale.value}`, { entries: parsed });
+      applyPackSummary(response.data?.data?.locales || []);
+      Message.success(`已保存 ${Object.keys(parsed as Record<string, string>).length} 条词条，官网正在重建`);
+      packVisible.value = false;
+    } catch (error: any) {
+      Message.error(error?.response?.data?.error?.message || '语言包保存失败');
+    } finally {
+      savingPack.value = false;
+    }
+  }
+  async function clearPack() {
+    try {
+      const response = await client.delete(`/site-admin-api/language-packs/${packLocale.value}`);
+      applyPackSummary(response.data?.data?.locales || []);
+      packText.value = '';
+      Message.success('语言包已清空，官网正在重建');
+    } catch {
+      /* 统一提示 */
+    }
+  }
+  async function aiFill() {
+    let parsed: Record<string, string>;
+    try {
+      parsed = JSON.parse(packText.value || '{}');
+    } catch {
+      Message.error('请先粘贴要翻译的原文词条（JSON 对象）');
+      return;
+    }
+    filling.value = packLocale.value;
+    try {
+      const response = await client.post(`/site-admin-api/language-packs/${packLocale.value}/ai-fill`, { entries: parsed });
+      const filled = response.data?.data?.filled ?? 0;
+      applyPackSummary(response.data?.data?.summary?.locales || []);
+      Message.success(filled ? `AI 已补齐 ${filled} 条缺失词条` : '没有需要补齐的词条');
+    } catch (error: any) {
+      Message.error(error?.response?.data?.error?.message || 'AI 补齐失败');
+    } finally {
+      filling.value = '';
+    }
+  }
 
   const LOCALES: Array<{ locale: Locale; name: string; role: string; hint: string }> = [
     { locale: 'zh-CN', name: '中文', role: '', hint: '有 AI 译文时优先使用；未生成时使用内置中文词典与默认政策。' },
@@ -221,7 +394,10 @@
     router.push('/ai/translation');
   }
 
-  onMounted(load);
+  onMounted(() => {
+    void load();
+    void loadPacks();
+  });
   onUnmounted(stopPolling);
 </script>
 

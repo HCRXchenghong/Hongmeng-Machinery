@@ -166,6 +166,14 @@ curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github.
 
 **备份**：一键脚本在健康检查全绿后才写入每日 02:00 的 cron，产物在 `/opt/hongmeng-machinery/.deploy/backups`（`pg_dump` gzip + `.sha256`），默认保留 30 天（`ASTREVA_BACKUP_RETENTION_DAYS`，该前缀为历史变量名）。
 
+**界面词条语言包**：后台「官网 → 多语言内容」每张语言卡上有「界面词条（语言包）」开关：
+选「语言包优先」时用你导入的专业译稿，选「交给 AI / 内置词典」时忽略语言包、回到内置词条。
+三个动作：`从内置词条生成`（把仓库里的中文/阿语词典灌进语言包，作为可编辑基线）、
+`导入 / 查看`（粘贴或上传 `{"原文":"译文"}` 形式的 JSON，保存后触发重建，约 10 秒生效）、
+`用 AI 补齐缺失词条`（把语言包里没有的原文交给已配置的翻译 AI 批量翻译并写回，标记 AI 补齐条数）。
+构建期由 `scripts/ensure-language-pack.mjs` 读取公开端点写入 `frontend/src/i18n/generated-pack.json`，
+再被 i18n 静态合并——所以不会出现运行时请求或文字闪烁；取不到语言包时等价于只用内置词典。
+
 **访问统计与同意**：拒绝可选 Cookie 时只上报 `{anonymous: true}` 的匿名计数——不带 visitor_id / session_id，也不写任何 Cookie；同意后才写 `hm_consent` 并带访客与会话标识。浏览器发出 GPC（`navigator.globalPrivacyControl`）时，未同意状态下连匿名计数都不上报。购物车放在 `localStorage`（`hongmeng_cart_v1`），关页面再回来还在。
 
 **日志保留**：后台「系统 → 系统日志」里可手动清理，默认留 180 天事件、30 天访客记录；接口按 `eventDays` 30–3650、`visitDays` 1–365 夹取，传 0 或负数不会被当成「立即清空」。
